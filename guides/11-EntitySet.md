@@ -389,6 +389,8 @@ public class User
 }
 ```
 
+**方言注意（Oracle）**：令牌校验通过 `WHERE 令牌列 = :旧令牌` 等值比较实现。Oracle 的 BLOB 列不可作等值比较键（ORA-22848），因此 Oracle 上令牌列应声明为 `RAW` 类型（如 `RAW(16)`，与 Guid 令牌长度匹配）；`varbinary`（SQL Server）、`bytea`（PostgreSQL）、`binary`（MySQL）、`BLOB`（SQLite）均可直接等值比较，无需特殊处理。
+
 **行为**：
 
 | 操作 | 并发行为 |

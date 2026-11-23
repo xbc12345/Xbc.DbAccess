@@ -58,8 +58,16 @@ namespace Xbc.DbAccess.IntegrationTests.Infrastructure
                 string columnType;
                 if (columnAttribute?.IsJson == true || columnAttribute?.EnumAsString == true)
                 {
-                    // JSON/枚举名称字符串列均按文本存储
-                    columnType = dialect switch { RealDbDialect.PgSql => "text", RealDbDialect.MySql => "text", RealDbDialect.Oracle => "nclob", RealDbDialect.Sqlite => "text", _ => "nvarchar(max)" };
+                    // JSON/枚举名称字符串列均按文本存储；Oracle 侧 JSON 用 NCLOB（不参与 WHERE 谓词，LIKE 可用），
+                    // 枚举名用 nvarchar2（NCLOB 不支持等值比较，枚举列需参与 WHERE 等值谓词）
+                    columnType = dialect switch
+                    {
+                        RealDbDialect.PgSql => "text",
+                        RealDbDialect.MySql => "text",
+                        RealDbDialect.Oracle => columnAttribute?.IsJson == true ? "nclob" : "nvarchar2(200)",
+                        RealDbDialect.Sqlite => "text",
+                        _ => "nvarchar(max)"
+                    };
                 }
                 else if (effectiveType.IsEnum)
                 {
@@ -204,7 +212,8 @@ namespace Xbc.DbAccess.IntegrationTests.Infrastructure
             if (type == typeof(DateTime)) return "timestamp";
             if (type == typeof(DateTimeOffset)) return "timestamp with time zone";
             if (type == typeof(Guid)) return "raw(16)";
-            if (type == typeof(byte[])) return "blob";
+            // Oracle 的 BLOB 不可作等值比较键（ORA-22848）：并发令牌（Guid 16 字节）等二进制列用 RAW 保证 WHERE 等值可用
+            if (type == typeof(byte[])) return "raw(2000)";
 
             throw new NotSupportedException($"测试 DDL 生成器不支持 CLR 类型 '{type.Name}'（方言 Oracle），请补充类型映射。");
         }

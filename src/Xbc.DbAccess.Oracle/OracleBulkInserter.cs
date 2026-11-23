@@ -1,3 +1,4 @@
+using System.Data;
 using System.Data.Common;
 using System.Text;
 using Oracle.ManagedDataAccess.Client;
@@ -74,12 +75,25 @@ namespace Xbc.DbAccess.Oracle
                     var columnValues = new object[rows.Count];
                     for (int r = 0; r < rows.Count; r++)
                     {
-                        columnValues[r] = rows[r][i];
+                        // bool → 1/0 归一为 decimal，与 OracleParameterBuilder 单条路径语义一致（ODP.NET 拒绝 Boolean 值绑定 NUMBER 列）
+                        columnValues[r] = rows[r][i] is bool b ? (b ? 1m : 0m) : rows[r][i];
                     }
 
-                    // 参数名用序号（p0、p1…），与列名解耦以规避特殊字符；数组绑定由 ODP.NET 按值数组元素的运行时类型推断列类型
+                    // 参数名用序号（p0、p1…），与列名解耦以规避特殊字符；数组绑定按首个非空元素的运行时类型显式指定 DbType
+                    // （ODP.NET 对未指定 DbType 的数组绑定按首元素推断，string 等类型会抛 ArgumentException，需显式声明）
                     var parameter = command.CreateParameter();
                     parameter.ParameterName = "p" + i;
+                    var first = columnValues.FirstOrDefault(v => v != null);
+                    parameter.DbType = first switch
+                    {
+                        string => DbType.String,
+                        decimal => DbType.Decimal,
+                        int => DbType.Int32,
+                        long => DbType.Int64,
+                        DateTime => DbType.DateTime,
+                        byte[] => DbType.Binary,
+                        _ => parameter.DbType
+                    };
                     parameter.Value = columnValues;
                     command.Parameters.Add(parameter);
                 }
