@@ -1,210 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  中央 NuGet 版本管理
-  所有 csproj 中的 PackageReference 不再指定 Version，统一在此处管理
+  中央 NuGet 版本管理（仅覆盖 src 下启用 CPM 的项目）
+  test/ 与 guides/ 各项目通过自身 Directory.Build.props 或 csproj 关闭了 CPM（ManagePackageVersionsCentrally=false），
+  版本在各自 csproj 中独立管理，不依赖本文件
   添加新依赖时：1) 在此处添加版本  2) 在 csproj 中只写 <PackageReference Include="..." />
 -->
 <Project>
 
-  <!-- ========== Xbc 内部包（统一版本） ========== -->
+  <!-- ========== src 实际使用的包 ========== -->
   <ItemGroup>
-    <PackageVersion Include="Xbc.Resilience" Version="$(Version)" />
-    <PackageVersion Include="Xbc.Resilience.Polly" Version="$(Version)" />
-    <PackageVersion Include="Xbc.Caching" Version="$(Version)" />
-    <PackageVersion Include="Xbc.Caching.Memory" Version="$(Version)" />
-    <PackageVersion Include="Xbc.Caching.Redis" Version="$(Version)" />
-    <PackageVersion Include="Xbc.Caching.Memcached" Version="$(Version)" />
-    <PackageVersion Include="Xbc.Logging" Version="$(Version)" />
-    <PackageVersion Include="Xbc.Observability" Version="$(Version)" />
-    <PackageVersion Include="Xbc.Observability.OpenTelemetry" Version="$(Version)" />
-    <PackageVersion Include="Xbc.Observability.HealthChecks" Version="$(Version)" />
-    <PackageVersion Include="Xbc.DistributedPrimitives" Version="$(Version)" />
-    <PackageVersion Include="Xbc.DistributedPrimitives.Redis" Version="$(Version)" />
-    <PackageVersion Include="Xbc.DistributedPrimitives.EntityFrameworkCore" Version="$(Version)" />
-    <PackageVersion Include="Xbc.DistributedPrimitives.DbAccess" Version="$(Version)" />
-    <PackageVersion Include="Xbc.DistributedPrimitives.AspNetCore" Version="$(Version)" />
-    <PackageVersion Include="Xbc.DistributedPrimitives.HttpProxy" Version="$(Version)" />
-    <PackageVersion Include="Xbc.Messaging" Version="$(Version)" />
-    <PackageVersion Include="Xbc.Messaging.EntityFrameworkCore" Version="$(Version)" />
-    <PackageVersion Include="Xbc.Messaging.Kafka" Version="$(Version)" />
-    <PackageVersion Include="Xbc.Messaging.RabbitMQ" Version="$(Version)" />
-    <PackageVersion Include="Xbc.Messaging.Redis" Version="$(Version)" />
-    <PackageVersion Include="Xbc.Mqtt" Version="$(Version)" />
-    <PackageVersion Include="Xbc.Mqtt.MqttNet" Version="$(Version)" />
-    <PackageVersion Include="Xbc.HttpProxy" Version="$(Version)" />
-    <PackageVersion Include="Xbc.DbAccess" Version="$(Version)" />
-    <PackageVersion Include="Xbc.DbAccess.MySql" Version="$(Version)" />
-    <PackageVersion Include="Xbc.DbAccess.Npgsql" Version="$(Version)" />
-    <PackageVersion Include="Xbc.DbAccess.Oracle" Version="$(Version)" />
-    <PackageVersion Include="Xbc.DbAccess.SqlServer" Version="$(Version)" />
-    <PackageVersion Include="Xbc.DbAccess.Sqlite" Version="$(Version)" />
-    <PackageVersion Include="Xbc.UnitOfWork" Version="$(Version)" />
-    <PackageVersion Include="Xbc.Validation" Version="$(Version)" />
-    <PackageVersion Include="Xbc.ExceptionHandling" Version="$(Version)" />
-    <PackageVersion Include="Xbc.Security" Version="$(Version)" />
-    <PackageVersion Include="Xbc.Localization" Version="$(Version)" />
-    <PackageVersion Include="Xbc.Storage" Version="$(Version)" />
-    <PackageVersion Include="Xbc.RateLimiting" Version="$(Version)" />
-    <PackageVersion Include="Xbc.RateLimiting.Redis" Version="$(Version)" />
-    <PackageVersion Include="Xbc.RateLimiting.AspNetCore" Version="$(Version)" />
-    <PackageVersion Include="Xbc.HttpProxy.RateLimiting" Version="$(Version)" />
-    <PackageVersion Include="Xbc.Audit" Version="$(Version)" />
-    <PackageVersion Include="Xbc.Cryptography" Version="$(Version)" />
-    <PackageVersion Include="Xbc.QueryModel" Version="$(Version)" />
-    <PackageVersion Include="Xbc.HttpProxy.Resilience" Version="$(Version)" />
-    <PackageVersion Include="Xbc.Testing" Version="$(Version)" />
-    <PackageVersion Include="Xbc.Rules" Version="$(Version)" />
-    <PackageVersion Include="Xbc.Rules.DynamicExpresso" Version="$(Version)" />
-    <PackageVersion Include="Xbc.IdGenerator" Version="$(Version)" />
-    <PackageVersion Include="Xbc.IdGenerator.Redis" Version="$(Version)" />
-    <PackageVersion Include="Xbc.IdGenerator.Database" Version="$(Version)" />
-    <PackageVersion Include="Xbc.TimeSeries" Version="$(Version)" />
-    <PackageVersion Include="Xbc.TimeSeries.InfluxDB" Version="$(Version)" />
-    <PackageVersion Include="Xbc.TimeSeries.TimescaleDB" Version="$(Version)" />
-    <PackageVersion Include="Xbc.TimeSeries.TDengine" Version="$(Version)" />
-  </ItemGroup>
-
-  <!-- ========== Microsoft.Extensions.* 抽象（主库可依赖） ========== -->
-  <ItemGroup>
+    <!-- 主库：诊断（Meter/ActivitySource/选项热更新）与 DI 扩展 -->
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="8.0.2" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
-    <PackageVersion Include="Microsoft.Extensions.Options" Version="8.0.2" />
-    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="8.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Options.DataAnnotations" Version="8.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="8.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="8.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="8.0.2" />
+    <!-- JSON 列（[Column(IsJson = true)]）序列化 -->
+    <PackageVersion Include="System.Text.Json" Version="10.0.9" />
+    <!-- System.Diagnostics.Metrics（Meter），netstandard2.0 需要；net462 由 csproj VersionOverride 6.0.1 -->
+    <PackageVersion Include="System.Diagnostics.DiagnosticSource" Version="8.0.1" />
+
+    <!-- SqlServer 方言（VersionOverride 9.0.4 对齐 SqlClient 6.1.1 传递链，避免 NU1605 降级） -->
+    <PackageVersion Include="Microsoft.Data.SqlClient" Version="6.1.1" />
     <PackageVersion Include="Microsoft.Extensions.Caching.Abstractions" Version="8.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Caching.Memory" Version="8.0.1" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Http" Version="8.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Localization.Abstractions" Version="8.0.0" />
-    <PackageVersion Include="System.Threading.RateLimiting" Version="8.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Localization" Version="8.0.0" />
-  </ItemGroup>
 
-  <!-- ========== ASP.NET Core（集成包专用） ========== -->
-  <ItemGroup>
-    <PackageVersion Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.2.0" />
-    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Core" Version="2.2.5" />
-    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="8.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" Version="8.0.0" />
-    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.6" />
-    <PackageVersion Include="Asp.Versioning.Mvc" Version="8.1.0" />
-    <PackageVersion Include="Asp.Versioning.Mvc.ApiExplorer" Version="8.1.0" />
-    <PackageVersion Include="Swashbuckle.AspNetCore" Version="6.6.2" />
-    <PackageVersion Include="Yarp.ReverseProxy" Version="2.1.0" />
-  </ItemGroup>
-
-  <!-- ========== 第三方组件（仅实现包依赖） ========== -->
-  <ItemGroup>
-    <PackageVersion Include="Polly" Version="8.4.0" />
-    <PackageVersion Include="Polly.Core" Version="8.4.0" />
-    <PackageVersion Include="Polly.RateLimiting" Version="8.4.0" />
-    <PackageVersion Include="Serilog" Version="3.1.1" />
-    <PackageVersion Include="Serilog.Extensions.Hosting" Version="8.0.0" />
-    <PackageVersion Include="Serilog.Extensions.Logging" Version="8.0.0" />
-    <PackageVersion Include="Serilog.Sinks.Console" Version="5.0.1" />
-    <PackageVersion Include="Serilog.Sinks.File" Version="5.0.0" />
-    <PackageVersion Include="FluentValidation" Version="11.9.0" />
-    <PackageVersion Include="OpenTelemetry" Version="1.9.0" />
-    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.9.0" />
-    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.9.0" />
-    <PackageVersion Include="OpenTelemetry.Exporter.Jaeger" Version="1.9.0" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.9.0" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.9.0" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.SqlClient" Version="1.9.0-beta.1" />
-    <PackageVersion Include="Grpc.Net.Client" Version="2.71.0" />
-    <PackageVersion Include="Grpc.Core.Api" Version="2.71.0" />
-    <PackageVersion Include="StackExchange.Redis" Version="2.7.33" />
-    <PackageVersion Include="RabbitMQ.Client" Version="7.2.1" />
-    <PackageVersion Include="Confluent.Kafka" Version="2.3.0" />
-    <PackageVersion Include="EnyimMemcachedCore" Version="2.4.5" />
-    <PackageVersion Include="DynamicExpresso.Core" Version="2.19.3" />
-    <PackageVersion Include="NRules.Runtime" Version="1.0.4" />
-    <PackageVersion Include="NRules.Fluent" Version="1.0.4" />
-    <PackageVersion Include="Microsoft.Data.SqlClient" Version="6.1.1" />
+    <!-- MySql 方言 -->
     <PackageVersion Include="MySqlConnector" Version="2.4.0" />
+    <!-- Npgsql 方言 -->
     <PackageVersion Include="Npgsql" Version="8.0.3" />
+    <!-- Sqlite 方言 -->
     <PackageVersion Include="System.Data.SQLite" Version="1.0.118" />
     <PackageVersion Include="Stub.System.Data.SQLite.Core.NetFramework" Version="1.0.119" />
+    <PackageVersion Include="Stub.System.Data.SQLite.Core.NetStandard" Version="1.0.119" />
+    <!-- Oracle 方言 -->
     <PackageVersion Include="Oracle.ManagedDataAccess" Version="23.4.0" />
     <PackageVersion Include="Oracle.ManagedDataAccess.Core" Version="23.4.0" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="8.0.11" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="8.0.11" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.11" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.11" />
-    <PackageVersion Include="AWSSDK.S3" Version="3.7.305.5" />
-    <PackageVersion Include="Aliyun.OSS.SDK.NetCore" Version="2.13.0" />
-    <PackageVersion Include="Azure.Storage.Blobs" Version="12.20.0" />
-    <PackageVersion Include="Minio" Version="6.0.3" />
-    <PackageVersion Include="Quartz" Version="3.22.0" />
-    <PackageVersion Include="Quartz.Extensions.Hosting" Version="3.22.0" />
-    <PackageVersion Include="MQTTnet" Version="4.3.7.1207" />
-    <PackageVersion Include="System.Reactive" Version="6.0.1" />
-    <PackageVersion Include="Xbc.Log.Log4net" Version="2.0.1" />
-    <PackageVersion Include="MailKit" Version="4.6.0" />
-    <PackageVersion Include="ClosedXML" Version="0.104.2" />
-    <PackageVersion Include="CsvHelper" Version="33.0.1" />
-    <PackageVersion Include="InfluxDB3.Client" Version="1.9.0" />
-    <PackageVersion Include="TDengine.Connector" Version="3.2.1" />
-    <PackageVersion Include="Audit.NET" Version="32.2.0" />
-    <PackageVersion Include="Audit.EntityFramework.Core" Version="32.2.0" />
-    <PackageVersion Include="Audit.WebApi.Core" Version="32.2.0" />
-    <PackageVersion Include="Microsoft.FeatureManagement" Version="4.6.0" />
-    <PackageVersion Include="Microsoft.FeatureManagement.AspNetCore" Version="4.5.0" />
-    <PackageVersion Include="MassTransit" Version="9.1.2" />
-    <PackageVersion Include="MassTransit.RabbitMQ" Version="9.1.2" />
-    <!-- DistributedLock（事实标准分布式锁库，替代 Xbc.DistributedPrimitives 锁模块） -->
-    <PackageVersion Include="DistributedLock.Core" Version="1.0.9" />
-    <PackageVersion Include="DistributedLock.Redis" Version="1.1.1" />
-  </ItemGroup>
 
-  <!-- ========== BCL Polyfill（旧式框架支持） ========== -->
-  <ItemGroup>
-    <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.9" />
-    <PackageVersion Include="System.Memory" Version="4.6.3" />
-    <PackageVersion Include="System.Net.Http" Version="4.3.4" />
-    <PackageVersion Include="System.Reflection.Emit" Version="4.7.0" />
-    <PackageVersion Include="System.Reflection.DispatchProxy" Version="4.7.1" />
-    <PackageVersion Include="System.Text.Json" Version="10.0.9" />
-    <PackageVersion Include="System.Threading.Tasks.Extensions" Version="4.6.3" />
-    <PackageVersion Include="System.ValueTuple" Version="4.6.2" />
-    <PackageVersion Include="System.Runtime.InteropServices.RuntimeInformation" Version="4.3.0" />
-    <PackageVersion Include="System.Collections.Immutable" Version="8.0.0" />
-    <PackageVersion Include="System.Buffers" Version="4.6.1" />
-    <PackageVersion Include="System.Diagnostics.DiagnosticSource" Version="8.0.1" />
-    <PackageVersion Include="System.Security.Cryptography.Algorithms" Version="4.3.1" />
-    <PackageVersion Include="System.Security.Cryptography.Cng" Version="5.0.0" />
-    <PackageVersion Include="System.Management" Version="8.0.0" />
-    <PackageVersion Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageVersion Include="BouncyCastle.Cryptography" Version="2.6.2" />
-    <PackageVersion Include="System.Threading.Channels" Version="8.0.0" />
-  </ItemGroup>
-
-  <!-- ========== 测试框架 ========== -->
-  <ItemGroup>
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
-    <PackageVersion Include="coverlet.collector" Version="6.0.2" />
-    <PackageVersion Include="xunit" Version="2.8.1" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.1" />
-    <PackageVersion Include="Moq" Version="4.20.70" />
-    <PackageVersion Include="FluentAssertions" Version="6.12.0" />
-    <PackageVersion Include="Testcontainers.Redis" Version="3.9.0" />
-    <PackageVersion Include="Testcontainers.MsSql" Version="3.9.0" />
-    <PackageVersion Include="Testcontainers.PostgreSql" Version="3.9.0" />
-    <PackageVersion Include="Testcontainers.MySql" Version="3.9.0" />
-    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.6" />
-    <PackageVersion Include="Stub.System.Data.SQLite.Core.NetStandard" Version="1.0.119" />
-  </ItemGroup>
-
-  <!-- ========== 源码生成器与分析器 ========== -->
-  <ItemGroup>
+    <!-- Source Link（CI 打包，Directory.Build.props 中条件引用） -->
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />
-    <PackageVersion Include="Roslynator.Analyzers" Version="4.12.4" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="8.0.0" />
   </ItemGroup>
 
 </Project>

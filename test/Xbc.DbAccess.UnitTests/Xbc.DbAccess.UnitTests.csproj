@@ -51,12 +51,12 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\..\src\Xbc.DbAccess\Xbc.DbAccess.SqlServer\Xbc.DbAccess.SqlServer.csproj" />
-        <ProjectReference Include="..\..\..\src\Xbc.DbAccess\Xbc.DbAccess\Xbc.DbAccess.csproj" />
-        <ProjectReference Include="..\..\..\src\Xbc.DbAccess\Xbc.DbAccess.Sqlite\Xbc.DbAccess.Sqlite.csproj" />
-        <ProjectReference Include="..\..\..\src\Xbc.DbAccess\Xbc.DbAccess.MySql\Xbc.DbAccess.MySql.csproj" />
-        <ProjectReference Include="..\..\..\src\Xbc.DbAccess\Xbc.DbAccess.Npgsql\Xbc.DbAccess.Npgsql.csproj" />
-        <ProjectReference Include="..\..\..\src\Xbc.DbAccess\Xbc.DbAccess.Oracle\Xbc.DbAccess.Oracle.csproj" />
+        <ProjectReference Include="..\..\src\Xbc.DbAccess.SqlServer\Xbc.DbAccess.SqlServer.csproj" />
+        <ProjectReference Include="..\..\src\Xbc.DbAccess\Xbc.DbAccess.csproj" />
+        <ProjectReference Include="..\..\src\Xbc.DbAccess.Sqlite\Xbc.DbAccess.Sqlite.csproj" />
+        <ProjectReference Include="..\..\src\Xbc.DbAccess.MySql\Xbc.DbAccess.MySql.csproj" />
+        <ProjectReference Include="..\..\src\Xbc.DbAccess.Npgsql\Xbc.DbAccess.Npgsql.csproj" />
+        <ProjectReference Include="..\..\src\Xbc.DbAccess.Oracle\Xbc.DbAccess.Oracle.csproj" />
     </ItemGroup>
 
 </Project>
