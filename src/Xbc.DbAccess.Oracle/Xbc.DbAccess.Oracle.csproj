@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFrameworks>netstandard2.1;net8.0;net462</TargetFrameworks>
+        <Description>Xbc.DbAccess 的 Oracle 数据库提供程序。</Description>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Remove="OracleMetadataProvider.cs" />
+        <Compile Remove="OracleTypeMapper.cs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+            <_Parameter1>Xbc.DbAccess.UnitTests</_Parameter1>
+        </AssemblyAttribute>
+    </ItemGroup>
+
+    <!-- net462 用 21.x 浮动范围（23.x 不支持 .NET Framework），TFM 级覆盖中央版本 -->
+    <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
+        <PackageReference Include="Oracle.ManagedDataAccess" VersionOverride="[21.14.0,21.21.0)" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
+        <PackageReference Include="Oracle.ManagedDataAccess" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'net6.0'">
+        <PackageReference Include="Oracle.ManagedDataAccess.Core" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+        <PackageReference Include="Oracle.ManagedDataAccess.Core" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">
+        <PackageReference Include="Oracle.ManagedDataAccess.Core" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Xbc.DbAccess\Xbc.DbAccess.csproj" />
+    </ItemGroup>
+
+    <!-- DI 抽象（全目标提供 DI 扩展方法） -->
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    </ItemGroup>
+
+</Project>

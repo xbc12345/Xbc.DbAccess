@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- DbAccess.Tests 保留独立版本管理：传递依赖 Xbc.DbAccess.SqlServer/Sqlite 的高版本包（M.E.DI.Abstractions 9.x、SqlClient 6.x 等）与中央 8.x 冲突 -->
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+</Project>

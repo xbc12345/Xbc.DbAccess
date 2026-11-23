@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFrameworks>netstandard2.0;net8.0;net462</TargetFrameworks>
+        <Description>Xbc.DbAccess 的 PostgreSQL 数据库提供程序。</Description>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Remove="NpgsqlMetadataProvider.cs" />
+        <Compile Remove="NpgsqlTypeMapper.cs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+            <_Parameter1>Xbc.DbAccess.UnitTests</_Parameter1>
+        </AssemblyAttribute>
+    </ItemGroup>
+
+    <!-- 各 TFM 对 Npgsql 大版本要求不同（net462 上限 8.0.9、net8.0 用 9.x），TFM 级覆盖中央版本 -->
+    <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
+        <PackageReference Include="Npgsql" VersionOverride="[4.1.13,8.0.9]" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+        <PackageReference Include="Npgsql" VersionOverride="9.0.1" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+        <PackageReference Include="Npgsql" VersionOverride="[8.0.3,8.0.9]" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Xbc.DbAccess\Xbc.DbAccess.csproj" />
+    </ItemGroup>
+
+    <!-- DI 抽象（全目标提供 DI 扩展方法） -->
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    </ItemGroup>
+
+</Project>

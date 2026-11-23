@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Benchmarks 保留独立版本管理：Dapper/BenchmarkDotNet 不进中央包管理，且传递依赖与中央 8.x 版本冲突（同 DbAccess.Tests） -->
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+</Project>

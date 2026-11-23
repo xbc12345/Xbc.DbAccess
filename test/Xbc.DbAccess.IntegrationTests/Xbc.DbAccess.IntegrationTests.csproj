@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+        <NoWarn>1701;1702;0300;0063;CS8618;CS8600;CS8601;CS8602;CS8604;CS8625;CS8765;CS8767;CA1822</NoWarn>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+        <NoWarn>1701;1702;0300;0063;CS8618;CS8600;CS8601;CS8602;CS8604;CS8625;CS8765;CS8767;CA1822</NoWarn>
+    </PropertyGroup>
+
+    <!-- 测试框架包版本与 UnitTests 一致（test/Directory.Build.props 已关闭 CPM，独立版本管理） -->
+    <ItemGroup>
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
+        <PackageReference Include="xunit" Version="2.8.1" />
+        <PackageReference Include="xunit.runner.visualstudio" Version="2.8.1">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+        <PackageReference Include="Xunit.SkippableFact" Version="1.5.23" />
+        <PackageReference Include="coverlet.msbuild" Version="6.0.2">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <!-- 覆盖率门禁（coverlet.msbuild）：仅 dotnet test -p:CollectCoverage=true 时采集并校验 -->
+    <!-- 集成测试补单测覆盖不了的真实环境路径（连接池/bulk/存储过程等）；
+         Total 阈值 52%：MySql/Oracle 方言包在本机不可用环境跳过（7%/5%）拉低总量，有环境的机器只会更高 -->
+    <PropertyGroup Condition="'$(CollectCoverage)' == 'true'">
+        <Exclude>[Xbc.DbAccess.IntegrationTests]*</Exclude>
+        <Threshold>52</Threshold>
+        <ThresholdType>line</ThresholdType>
+        <ThresholdStat>total</ThresholdStat>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\src\Xbc.DbAccess\Xbc.DbAccess\Xbc.DbAccess.csproj" />
+        <ProjectReference Include="..\..\..\src\Xbc.DbAccess\Xbc.DbAccess.SqlServer\Xbc.DbAccess.SqlServer.csproj" />
+        <ProjectReference Include="..\..\..\src\Xbc.DbAccess\Xbc.DbAccess.Npgsql\Xbc.DbAccess.Npgsql.csproj" />
+        <ProjectReference Include="..\..\..\src\Xbc.DbAccess\Xbc.DbAccess.MySql\Xbc.DbAccess.MySql.csproj" />
+        <ProjectReference Include="..\..\..\src\Xbc.DbAccess\Xbc.DbAccess.Oracle\Xbc.DbAccess.Oracle.csproj" />
+        <ProjectReference Include="..\..\..\src\Xbc.DbAccess\Xbc.DbAccess.Sqlite\Xbc.DbAccess.Sqlite.csproj" />
+    </ItemGroup>
+
+</Project>

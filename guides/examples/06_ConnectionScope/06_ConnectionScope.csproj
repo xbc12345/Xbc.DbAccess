@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <!-- 引用 src 下独立版本管理的 DbAccess 项目，需关闭中央包管理以避免版本冲突 -->
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\src\Xbc.DbAccess\Xbc.DbAccess\Xbc.DbAccess.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Xbc.DbAccess\Xbc.DbAccess.Sqlite\Xbc.DbAccess.Sqlite.csproj" />
+  </ItemGroup>
+
+</Project>

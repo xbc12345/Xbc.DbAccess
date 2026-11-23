@@ -1,0 +1,78 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFrameworks>netstandard2.0;net8.0;net462</TargetFrameworks>
+        <Description>数据库访问框架，基于 ADO.NET 提供统一的数据库访问抽象，支持连接管理、SQL 执行、事务管理、存储过程以及实体映射等功能。</Description>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+            <_Parameter1>Xbc.DbAccess.UnitTests</_Parameter1>
+        </AssemblyAttribute>
+    </ItemGroup>
+
+    <!-- 真库集成测试项目（PostgreSQL/SQL Server）需访问 internal 的 EntitySet 与方言设施 -->
+    <ItemGroup>
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+            <_Parameter1>Xbc.DbAccess.IntegrationTests</_Parameter1>
+        </AssemblyAttribute>
+    </ItemGroup>
+
+    <ItemGroup>
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+            <_Parameter1>Xbc.DbAccess.Benchmarks</_Parameter1>
+        </AssemblyAttribute>
+    </ItemGroup>
+
+    <ItemGroup>
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+            <_Parameter1>DynamicProxyGenAssembly2</_Parameter1>
+        </AssemblyAttribute>
+    </ItemGroup>
+
+    <!-- 方言库需使用主库 internal 的 Guard 做参数校验 -->
+    <ItemGroup>
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+            <_Parameter1>Xbc.DbAccess.MySql</_Parameter1>
+        </AssemblyAttribute>
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+            <_Parameter1>Xbc.DbAccess.Npgsql</_Parameter1>
+        </AssemblyAttribute>
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+            <_Parameter1>Xbc.DbAccess.Oracle</_Parameter1>
+        </AssemblyAttribute>
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+            <_Parameter1>Xbc.DbAccess.Sqlite</_Parameter1>
+        </AssemblyAttribute>
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+            <_Parameter1>Xbc.DbAccess.SqlServer</_Parameter1>
+        </AssemblyAttribute>
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
+        <Reference Include="System.Transactions" />
+    </ItemGroup>
+
+    <!-- 诊断（Meter 指标 + ActivitySource span + 选项监视器热更新）所需包：版本统一由 Directory.Packages.props 中央管理 -->
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.Options" />
+        <!-- DebugLog ILogger 路由（OTel Logs 通道）；8.0.1+ 依赖 DiagnosticSource >= 8.0.1，与 net462 固定的 6.0.1 冲突，故 TFM 级覆盖为无依赖的 8.0.0 -->
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" VersionOverride="8.0.0" />
+        <!-- DI 注册扩展（AddDbAccess）所需抽象，与 Options 版本对齐 -->
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+        <!-- JSON 列（[Column(IsJson = true)]）的序列化支持 -->
+        <PackageReference Include="System.Text.Json" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+        <!-- System.Diagnostics.Metrics（Meter）位于 DiagnosticSource 包，net8.0 已内置 -->
+        <PackageReference Include="System.Diagnostics.DiagnosticSource" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
+        <!-- net462 下 DiagnosticSource 8.x 依赖链过重，TFM 级覆盖为 6.0.x（含 System.Diagnostics.Metrics），替换全局 polyfill 的无版本引用 -->
+        <PackageReference Remove="System.Diagnostics.DiagnosticSource" />
+        <PackageReference Include="System.Diagnostics.DiagnosticSource" VersionOverride="6.0.1" />
+    </ItemGroup>
+
+</Project>

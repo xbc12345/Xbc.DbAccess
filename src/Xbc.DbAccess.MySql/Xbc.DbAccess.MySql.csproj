@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFrameworks>netstandard2.0;net8.0;net462</TargetFrameworks>
+        <Description>Xbc.DbAccess 的 MySQL 数据库提供程序。</Description>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Remove="MySqlMetadataProvider.cs" />
+        <Compile Remove="MySqlTypeMapper.cs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+            <_Parameter1>Xbc.DbAccess.UnitTests</_Parameter1>
+        </AssemblyAttribute>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="MySqlConnector" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Xbc.DbAccess\Xbc.DbAccess.csproj" />
+    </ItemGroup>
+
+    <!-- DI 抽象（全目标提供 DI 扩展方法） -->
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    </ItemGroup>
+
+</Project>

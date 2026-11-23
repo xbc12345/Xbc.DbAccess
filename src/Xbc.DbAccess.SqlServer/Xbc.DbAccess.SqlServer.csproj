@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFrameworks>netstandard2.0;net8.0;net462</TargetFrameworks>
+        <GeneratePackageOnBuild>False</GeneratePackageOnBuild>
+        <Description>Xbc.DbAccess 的 SQL Server 数据库提供程序。</Description>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Remove="SqlMetadataProvider.cs" />
+        <Compile Remove="SqlServerTypeMapper.cs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+            <_Parameter1>Xbc.DbAccess.UnitTests</_Parameter1>
+        </AssemblyAttribute>
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+        <PackageReference Include="Microsoft.Data.SqlClient" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+        <PackageReference Include="Microsoft.Data.SqlClient" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Xbc.DbAccess\Xbc.DbAccess.csproj" />
+    </ItemGroup>
+
+    <!-- DI 抽象（全目标提供 DI 扩展方法）；9.x 以上的 DI 抽象要求 net8.0+，TFM 级覆盖中央 8.0.2 -->
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" VersionOverride="9.0.4" />
+    </ItemGroup>
+
+    <!-- SqlClient 6.1.1 传递依赖链（Azure.Core → System.ClientModel → Caching.Memory 9.0.4）要求整个
+         Microsoft.Extensions.* 9.x 家族，项目级整体提升以满足 NU1109（不影响其他项目的中央 8.x 版本） -->
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" VersionOverride="9.0.4" />
+        <PackageReference Include="Microsoft.Extensions.Caching.Memory" VersionOverride="9.0.4" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" VersionOverride="9.0.4" />
+        <PackageReference Include="Microsoft.Extensions.Options" VersionOverride="9.0.4" />
+        <PackageReference Include="System.Diagnostics.DiagnosticSource" VersionOverride="9.0.4" />
+    </ItemGroup>
+
+</Project>
