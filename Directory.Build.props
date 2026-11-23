@@ -29,8 +29,8 @@
     <RepositoryType>git</RepositoryType>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
-    <IncludeSymbols>true</IncludeSymbols>
-    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <!-- 符号包关闭：本地构建的 PDB 内嵌本地路径（SourceLink 路径映射仅 GITHUB_ACTIONS 构建时生效），发布符号包会泄露本地信息 -->
+    <IncludeSymbols>false</IncludeSymbols>
 
     <!-- 库专用属性 -->
     <IsPackable>true</IsPackable>
