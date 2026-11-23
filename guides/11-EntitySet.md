@@ -32,7 +32,7 @@
 **Insert/Update/Delete 仅操作主实体本身，不处理导航属性数据；导航属性数据需业务代码显式管理。**
 
 - 1:1 导航引用已赋值时，插入/更新会将其目标主键同步到主实体的外键列（纯内存同步，不查库、不递归）；
-- 1:N 集合导航不做任何处理，子实体的增删改由调用方自行负责；
+- 1:N 集合导航已赋值时，插入/更新后会同步对方实体的外键列（默认值回填本方主键值，已有值以对方外键为准）；对方实体的入库仍由调用方负责；
 - 删除不级联删除子实体：若主实体被子记录的外键引用，删除将失败，需先删除子记录或使用数据库级联删除约束；
 - 导航属性的读取请使用查询侧的 `Include`/`ThenInclude` 能力（见 [使用 IEntityQuery](10-EntityQuery.md)）。
 
@@ -91,11 +91,11 @@ var adults = await db.Set<User>().Where(u => u.Age >= 18).ToListAsync();
 ### 3.3 复杂查询
 
 `IEntitySet<T>` 提供主键查找（`FindAsync`）与谓词查询（`Where`，谓词能力与条件 UPDATE/DELETE 一致）；
-更复杂的查询请使用 `db.Query<T>(sql, param)` 实体查询，用法详见 [使用 IEntityQuery](10-EntityQuery.md)：
+更复杂的查询请使用 `db.FromSql<T>(sql, param)` 实体查询（`Xbc.DbAccess.Entity` 命名空间扩展），用法详见 [使用 IEntityQuery](10-EntityQuery.md)：
 
 ```csharp
-// 使用 Query 进行复杂查询
-var users = await db.Query<User>(
+// 使用 FromSql 进行复杂查询
+var users = await db.FromSql<User>(
     "SELECT * FROM Users WHERE Status = @Status",
     new { Status = 1 }).ToListAsync();
 ```
@@ -233,7 +233,7 @@ foreach (var user in users)
 
 ```csharp
 // 查询需要更新的用户
-var users = await db.Query<User>(
+var users = await db.FromSql<User>(
     "SELECT * FROM Users WHERE Status = @Status",
     new { Status = 0 }).ToListAsync();
 
@@ -252,7 +252,7 @@ Console.WriteLine($"批量更新了 {rowsAffected} 条记录");
 
 ```csharp
 // 查询需要删除的用户
-var users = await db.Query<User>(
+var users = await db.FromSql<User>(
     "SELECT * FROM Users WHERE Status = @Status",
     new { Status = 0 }).ToListAsync();
 
@@ -374,10 +374,6 @@ if (rows == 0)
 
 ## 相关文档
 
-- [实体类的定义](08-EntityDefinition.md) - 了解如何通过特性配置实体类，控制映射行为。
-- [实体映射器](09-EntityMapper.md) - 了解 `EntityMapper<T>` 的底层映射机制。
+- [实体类的定义](08-EntityDefinition.md) - 了解如何通过特性配置实体类，控制映射行为（含自定义类型转换器）。
+- [实体映射与缓存治理](09-EntityMapping.md) - 了解实体映射机制与映射缓存治理。
 - [使用 IEntityQuery](10-EntityQuery.md) - 了解实体查询的详细用法。
-
-## 下一步
-
-- [使用自定义类型转换器](12-Custom-Type-Converter.md) - 自定义类型转换。

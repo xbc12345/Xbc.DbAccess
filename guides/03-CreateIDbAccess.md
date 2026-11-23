@@ -72,16 +72,10 @@ public interface IDbAccessFactory
     IDbConnectionManager ConnectionManager { get; }
 
     /// <summary>
-    /// 连接追踪器。
+    /// 获取数据库服务器信息：首次调用时获取并缓存，失败与已取消的任务不缓存，下次调用重新探测。
     /// </summary>
-    IDbConnectionTracker ConnectionTracker { get; }
-
-    /// <summary>
-    /// 异步获取数据库服务器信息。
-    /// </summary>
-    /// <param name="cancellationToken">取消令牌。</param>
-    /// <returns></returns>
-    Task<DbServerInfo> GetServerInfoAsync(CancellationToken cancellationToken = default);
+    /// <returns>数据库服务器信息。</returns>
+    Task<DbServerInfo> GetServerInfoAsync();
 
     /// <summary>
     /// 创建数据库访问对象。
@@ -116,7 +110,7 @@ var result = await db.ExecuteScalarAsync("SELECT 1");
 | 数据库            | 工厂类                   | 创建方法                                                          |
 | -------------- | --------------------- | ------------------------------------------------------------- |
 | **SQLite**     | `SqliteAccessFactory` | `SqliteAccessFactory.CreateSqliteFactory(options => { ... })` |
-| **SQL Server** | `SqlAccessFactory`    | `SqlAccessFactory.CreateSqlFactory(options => { ... })`       |
+| **SQL Server** | `SqlAccessFactory`    | `SqlAccessFactory.CreateSqlServerFactory(options => { ... })` |
 | **MySQL**      | `MySqlAccessFactory`  | `MySqlAccessFactory.CreateMySqlFactory(options => { ... })`   |
 | **PostgreSQL** | `NpgsqlAccessFactory` | `NpgsqlAccessFactory.CreateNpgsqlFactory(options => { ... })` |
 | **Oracle**     | `OracleAccessFactory` | `OracleAccessFactory.CreateOracleFactory(options => { ... })` |
@@ -469,7 +463,7 @@ builder.Services.AddSingleton<IDbAccessFactory>("PrimaryDb", provider =>
 {
     var configuration = provider.GetRequiredService<IConfiguration>();
     var options = configuration.GetSection("DbOptions:PrimaryDb").Get<DbConnectionOptions>();
-    return SqlAccessFactory.CreateSqlFactory(options);
+    return SqlAccessFactory.CreateSqlServerFactory(options);
 });
 
 builder.Services.AddSingleton<IDbAccessFactory>("LogDb", provider =>

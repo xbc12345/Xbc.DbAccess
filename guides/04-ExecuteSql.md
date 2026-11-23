@@ -139,10 +139,10 @@ var param1 = db.CreateParameter("Name", "张三");
 var param2 = db.CreateParameter("Age", 25);
 var param3 = db.CreateParameter("BirthDate", DateTime.Now, DbType.DateTime);
 
-// 执行查询
+// 执行查询（多个参数以数组形式传入）
 var reader = await db.ExecuteReaderAsync(
     "SELECT * FROM Users WHERE Name = @Name AND Age = @Age",
-    param1, param2, param3);
+    new[] { param1, param2, param3 });
 
 // 或使用数组
 var parameters = new[]

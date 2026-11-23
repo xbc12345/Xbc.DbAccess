@@ -17,17 +17,21 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "05_Transaction", "05_Transa
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "06_ConnectionScope", "06_ConnectionScope\06_ConnectionScope.csproj", "{6EC257D3-2757-474D-B944-5A01AD632DE1}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Xbc.DbAccess", "..\..\..\src\Xbc.DbAccess\Xbc.DbAccess.csproj", "{51C348B3-24D8-45B6-BC26-4598F270C7E5}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Xbc.DbAccess", "..\..\src\Xbc.DbAccess\Xbc.DbAccess.csproj", "{51C348B3-24D8-45B6-BC26-4598F270C7E5}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Xbc.DbAccess.Sqlite", "..\..\..\src\Xbc.DbAccess.Sqlite\Xbc.DbAccess.Sqlite.csproj", "{0A7CBF00-0F41-41A4-98C4-BB3E310511BB}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Xbc.DbAccess.Sqlite", "..\..\src\Xbc.DbAccess.Sqlite\Xbc.DbAccess.Sqlite.csproj", "{0A7CBF00-0F41-41A4-98C4-BB3E310511BB}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Xbc.DbAccess.SqlServer", "..\..\..\src\Xbc.DbAccess.SqlServer\Xbc.DbAccess.SqlServer.csproj", "{BB73FC7D-B7C1-4CEF-B803-0E0CAE1A957D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Xbc.DbAccess.SqlServer", "..\..\src\Xbc.DbAccess.SqlServer\Xbc.DbAccess.SqlServer.csproj", "{BB73FC7D-B7C1-4CEF-B803-0E0CAE1A957D}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "07_StoredProcedure", "07_StoredProcedure\07_StoredProcedure.csproj", "{57B3E7EE-EC59-47A7-AB8C-27FC0E0C14D8}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "08_EntityDefinition", "08_EntityDefinition\08_EntityDefinition.csproj", "{5BEF01F4-E996-45FA-9879-C17061989879}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "09_EntityMapper", "09_EntityMapper\09_EntityMapper.csproj", "{AA3BB7A0-3925-4CF3-B386-6A3CF6055D2B}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "10_EntityQuery", "10_EntityQuery\10_EntityQuery.csproj", "{D3E8F0A1-7B2C-4E9D-A5F6-1C2B3D4E5F60}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "11_EntitySet", "11_EntitySet\11_EntitySet.csproj", "{E4F9A1B2-8C3D-4F0E-B6A7-2D3E4F5A6B71}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -83,6 +87,14 @@ Global
 		{AA3BB7A0-3925-4CF3-B386-6A3CF6055D2B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{AA3BB7A0-3925-4CF3-B386-6A3CF6055D2B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{AA3BB7A0-3925-4CF3-B386-6A3CF6055D2B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D3E8F0A1-7B2C-4E9D-A5F6-1C2B3D4E5F60}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D3E8F0A1-7B2C-4E9D-A5F6-1C2B3D4E5F60}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D3E8F0A1-7B2C-4E9D-A5F6-1C2B3D4E5F60}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D3E8F0A1-7B2C-4E9D-A5F6-1C2B3D4E5F60}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E4F9A1B2-8C3D-4F0E-B6A7-2D3E4F5A6B71}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E4F9A1B2-8C3D-4F0E-B6A7-2D3E4F5A6B71}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E4F9A1B2-8C3D-4F0E-B6A7-2D3E4F5A6B71}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E4F9A1B2-8C3D-4F0E-B6A7-2D3E4F5A6B71}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

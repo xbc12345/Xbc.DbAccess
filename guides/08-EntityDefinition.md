@@ -615,11 +615,11 @@ public class Order
 
 ### 5.5 加载导航属性
 
-使用 `Query<T>().Include()` 方法加载导航属性。框架采用分裂查询策略：先查询主实体，再根据主外键值查询关联表，最后在内存中装配。
+使用 `FromSql<T>().Include()` 方法加载导航属性。框架采用分裂查询策略：先查询主实体，再根据主外键值查询关联表，最后在内存中装配。
 
 ```csharp
 // 查询用户并加载其所有订单（查询枚举仅提供异步方法）
-var users = await db.Query<User>("SELECT * FROM Users")
+var users = await db.FromSql<User>("SELECT * FROM Users")
     .Include(u => u.Orders)
     .ToListAsync();
 
@@ -636,7 +636,7 @@ foreach (var user in users)
 **加载多个导航属性：**
 
 ```csharp
-var users = await db.Query<User>("SELECT * FROM Users")
+var users = await db.FromSql<User>("SELECT * FROM Users")
     .Include(u => u.Department)
     .Include(u => u.Orders)
     .ToListAsync();
@@ -749,7 +749,7 @@ public class EntityDefinitionExample
             });
         
         // 查询数据并映射到实体
-        var users = await db.Query<User>("SELECT * FROM Users").ToListAsync();
+        var users = await db.FromSql<User>("SELECT * FROM Users").ToListAsync();
         
         foreach (var user in users)
         {
@@ -757,7 +757,7 @@ public class EntityDefinitionExample
         }
         
         // 查询用户并加载导航属性
-        var usersWithOrders = await db.Query<User>("SELECT * FROM Users")
+        var usersWithOrders = await db.FromSql<User>("SELECT * FROM Users")
             .Include(u => u.Orders)
             .ToListAsync();
     }
@@ -774,5 +774,5 @@ dotnet run
 
 ## 下一步
 
-- [使用 EntityMapper](09-EntityMapper.md) - 深入了解实体映射器的使用
-- [实体查询](10-EntityQuery.md) - 使用 `Query<T>` 进行实体查询，包括导航属性加载
+- [实体映射与缓存治理](09-EntityMapping.md) - 深入了解实体映射与缓存治理机制
+- [实体查询](10-EntityQuery.md) - 使用 `FromSql<T>` 进行实体查询，包括导航属性加载

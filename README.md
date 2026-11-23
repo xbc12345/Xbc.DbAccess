@@ -146,6 +146,24 @@ var usersWithOrders = await db.FromSql<User>("SELECT * FROM Users")
 - **插值参数化入口**（`ExecuteNonQueryInterpolatedAsync` 等，EF `FromSqlInterpolated` 同款语义）：调用点内联 `$"..."` 书写，插值孔一律转为数据库参数、值永不进入 SQL 文本；参数类型为 `FormattableString`，先物化字符串再传入会**编译失败**
 - ⚠️ **插值字符串错觉**：对裸 SQL 入口写 `$"... WHERE Name = {userName}"` 不构成任何防护——参数类型是 `string`，编译器在调用点即完成拼接，与手动 `+` 拼接完全等价
 
+## 文档
+
+| 指南 | 内容 |
+| --- | --- |
+| [01 连接配置选项](guides/01-ConnectionConfiguration.md) | `DbConnectionOptions` 连接配置 |
+| [02 连接池](guides/02-ConnectionPool.md) | 连接池配置与行为 |
+| [03 创建 IDbAccess 实例](guides/03-CreateIDbAccess.md) | 工厂模式与依赖注入集成 |
+| [04 执行 SQL](guides/04-ExecuteSql.md) | 参数化查询、Reader / DataSet / 标量 / 分页 |
+| [05 事务](guides/05-Transaction.md) | 事务与保存点嵌套 |
+| [06 连接作用域](guides/06-ConnectionScope.md) | 连接作用域内复用连接 |
+| [07 存储过程](guides/07-StoredProcedure.md) | 存储过程执行与输出参数 |
+| [08 实体类的定义](guides/08-EntityDefinition.md) | Table / Column / 主键 / 导航特性 |
+| [09 实体映射与缓存治理](guides/09-EntityMapping.md) | 实体映射与缓存治理 |
+| [10 IEntityQuery](guides/10-EntityQuery.md) | 实体查询：投影、分页、Include |
+| [11 IEntitySet](guides/11-EntitySet.md) | 实体增删改查与批量操作 |
+
+可运行示例代码位于 `guides/examples/`（11 个工程随构建验证）。
+
 ## License
 
 本项目基于 [MIT License](LICENSE) 开源发布。

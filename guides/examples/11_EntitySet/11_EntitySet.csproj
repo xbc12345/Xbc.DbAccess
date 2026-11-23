@@ -10,9 +10,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\..\src\Xbc.DbAccess\Xbc.DbAccess.Sqlite\Xbc.DbAccess.Sqlite.csproj" />
-    <ProjectReference Include="..\..\..\..\src\Xbc.DbAccess\Xbc.DbAccess.SqlServer\Xbc.DbAccess.SqlServer.csproj" />
-    <ProjectReference Include="..\..\..\..\src\Xbc.DbAccess\Xbc.DbAccess\Xbc.DbAccess.csproj" />
+    <ProjectReference Include="..\..\..\src\Xbc.DbAccess.Sqlite\Xbc.DbAccess.Sqlite.csproj" />
+    <ProjectReference Include="..\..\..\src\Xbc.DbAccess.SqlServer\Xbc.DbAccess.SqlServer.csproj" />
+    <ProjectReference Include="..\..\..\src\Xbc.DbAccess\Xbc.DbAccess.csproj" />
   </ItemGroup>
 
   <ItemGroup>

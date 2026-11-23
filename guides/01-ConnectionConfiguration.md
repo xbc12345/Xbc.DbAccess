@@ -38,7 +38,7 @@ var factory = SqliteAccessFactory.CreateSqliteFactory("Data Source=myapp.db");
 
 ```csharp
 // SQL Server
-var factory = SqlAccessFactory.CreateSqlFactory("Server=localhost;Database=mydb;...");
+var factory = SqlAccessFactory.CreateSqlServerFactory("Server=localhost;Database=mydb;...");
 
 // MySQL
 var factory = MySqlAccessFactory.CreateMySqlFactory("Server=localhost;Database=mydb;...");

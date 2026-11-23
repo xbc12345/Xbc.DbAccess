@@ -26,7 +26,7 @@
 
 ### 1.2 获取 IEntityQuery
 
-通过 `Query<T>()` 扩展方法获取 `IEntityQuery<T>` 实例。SQL 语句与参数在创建查询时指定，后续枚举方法无需再传 SQL：
+通过 `FromSql<T>()` 扩展方法（`Xbc.DbAccess.Entity` 命名空间）获取 `IEntityQuery<T>` 实例。SQL 语句与参数在创建查询时指定，后续枚举方法无需再传 SQL：
 
 ```csharp
 // 获取 User 实体的查询对象（SQL 在创建时指定）
@@ -37,7 +37,7 @@ IEntityQuery<User> query = db.FromSql<User>(
 
 ### 1.3 参数传递
 
-`Query<T>()` 支持使用匿名对象传递参数（推荐）：
+`FromSql<T>()` 支持使用匿名对象传递参数（推荐）：
 
 ```csharp
 var user = await db.FromSql<User>(
@@ -247,7 +247,7 @@ dotnet run
 ## 相关文档
 
 - [实体类的定义](08-EntityDefinition.md) - 了解如何通过特性配置实体类，控制映射行为。
-- [实体映射器](09-EntityMapper.md) - 了解 `EntityMapper<T>` 的底层映射机制。
+- [实体映射与缓存治理](09-EntityMapping.md) - 了解实体映射机制与映射缓存治理。
 
 ## 下一步
 

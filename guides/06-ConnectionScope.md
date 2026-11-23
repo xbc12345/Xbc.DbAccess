@@ -344,10 +344,10 @@ using (var scope = await db.BeginConnectionScopeAsync())
 
 ```csharp
 // Program.cs 中注册为 Scoped 生命周期
-builder.Services.AddDbAccessFactory(options =>
+builder.Services.AddDbAccess(options =>
 {
     options.ConnectionString = "...";
-});
+}, SqliteAccessFactory.CreateSqliteFactory);
 builder.Services.AddScoped<IDbAccess>(sp => 
     sp.GetRequiredService<IDbAccessFactory>().Create());
 
