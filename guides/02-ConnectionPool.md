@@ -149,12 +149,14 @@ var factory = SqliteAccessFactory.CreateSqliteFactory(options =>
     options.ConnectionString = "...";
     options.PoolOptions = new DbConnectionPoolOptions
     {
-        Enabled = true,                                 // 启用连接池
+        Enabled = true,                                 // 启用连接池（默认 false）
         MinPoolSize = 5,                                // 最小连接数（默认5）
         MaxPoolSize = 100,                              // 最大连接数（默认100）
         ConnectionWaitTimeout = TimeSpan.FromSeconds(3),// 连接等待超时（默认3秒）
         MaxIdleTime = TimeSpan.FromMinutes(15),         // 最大空闲时间（默认15分钟）
-        CleanupInterval = TimeSpan.FromMinutes(5)       // 清理间隔（默认5分钟）
+        CleanupInterval = TimeSpan.FromMinutes(5),      // 清理间隔（默认5分钟）
+        ValidationSkipInterval = TimeSpan.FromSeconds(10), // 跳过健康检查的间隔（默认10秒）
+        ValidationCommandTimeout = 3                    // 健康检查命令超时秒数（默认3）
     };
 });
 ```
@@ -169,6 +171,14 @@ var factory = SqliteAccessFactory.CreateSqliteFactory(options =>
 | `ConnectionWaitTimeout` | `3秒`    | 连接等待超时，获取连接的最大等待时间    |
 | `MaxIdleTime`           | `15分钟`  | 最大空闲时间，超过此时间的空闲连接将被关闭 |
 | `CleanupInterval`       | `5分钟`   | 清理间隔，连接池检查并清理空闲连接的频率  |
+| `ValidationSkipInterval` | `10秒`  | 激活连接时跳过健康检查的间隔：连接已打开且最近使用时间在此间隔内时跳过连通性验证直接复用；`TimeSpan.Zero` 表示每次激活都验证 |
+| `ValidationCommandTimeout` | `3`   | 激活连接时执行健康检查命令的超时时间（秒），0 表示不限时 |
+
+**健康检查（激活校验）**：连接从空闲池取出复用时会进行激活校验——若最近使用时间在 `ValidationSkipInterval` 之内则直接复用（减少往返），否则执行一条按方言生成的健康检查命令（`SELECT 1`，Oracle 为 `SELECT 1 FROM DUAL`），校验失败或超时的连接会被丢弃并创建新连接。间隔越长复用性能越好，但断线检测越滞后。
+
+> ⚠️ **与原生连接池二选一**：内建池与 ADO.NET 提供程序的原生连接池（连接串 `Pooling` 开关）相互独立，同时启用会导致物理连接数放大。启用内建池时应关闭原生池（如 SqlClient 的 `Pooling=false`）。
+
+> ⚠️ **会话状态残留（已知限制）**：连接回池复用时仅重置当前数据库上下文，临时表、`SET` 选项、`CONTEXT_INFO`、会话级锁等会话状态会残留给下一个借用者。需要会话级状态时，应经 `IDbAccess.ProviderFactory.DbProviderFactory.CreateConnection()` 创建独立的非池化连接。
 
 ## 3. 连接的获取与回收
 

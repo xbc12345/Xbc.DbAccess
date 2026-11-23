@@ -58,8 +58,28 @@ namespace EntityQueryExample
                 Console.WriteLine("\n5. 分页查询 - Skip/Take 窗口");
                 await DemonstratePaginationAsync(db);
 
-                // 示例 6: 带取消令牌的查询
-                Console.WriteLine("\n6. 带取消令牌的查询");
+                // 示例 6: 表达式谓词查询（Set<T>().Where）
+                Console.WriteLine("\n6. 表达式谓词查询 - Set<T>().Where");
+                await DemonstrateExpressionQueryAsync(db);
+
+                // 示例 7: keyset 分页
+                Console.WriteLine("\n7. keyset 分页 - KeysetAfterAsync");
+                await DemonstrateKeysetPagingAsync(db);
+
+                // 示例 8: 投影（Select）
+                Console.WriteLine("\n8. 投影 - Select");
+                await DemonstrateProjectionAsync(db);
+
+                // 示例 9: 聚合方法
+                Console.WriteLine("\n9. 聚合方法 - Count/Sum/Average/Max/Min");
+                await DemonstrateAggregatesAsync(db);
+
+                // 示例 10: 分组聚合（GroupBy / Having）
+                Console.WriteLine("\n10. 分组聚合 - GroupBy / Having");
+                await DemonstrateGroupByAsync(db);
+
+                // 示例 11: 带取消令牌的查询
+                Console.WriteLine("\n11. 带取消令牌的查询");
                 await DemonstrateCancellationTokenAsync(db);
 
                 Console.WriteLine("\n示例完成!");
@@ -203,6 +223,98 @@ namespace EntityQueryExample
             }
         }
 
+        private static async Task DemonstrateExpressionQueryAsync(IDbAccess db)
+        {
+            // 谓词表达式自动翻译为参数化 WHERE 子句
+            var adults = await db.Set<User>().Where(u => u.Age >= 26).ToListAsync();
+            Console.WriteLine($"   年龄 >= 26 的用户: {adults.Count} 位");
+            foreach (var u in adults.Take(3))
+            {
+                Console.WriteLine($"   - {u.UserName} ({u.Age} 岁)");
+            }
+
+            // 组合谓词 + 字符串匹配
+            var matches = await db.Set<User>()
+                .Where(u => u.Status == 1 && u.Email.Contains("example.com"))
+                .OrderBy(u => u.UserId)
+                .ToListAsync();
+            Console.WriteLine($"   活跃且邮箱含 example.com 的用户: {matches.Count} 位");
+        }
+
+        private static async Task DemonstrateKeysetPagingAsync(IDbAccess db)
+        {
+            // 键集排序 + 游标翻页，深分页性能稳定
+            var query = db.Set<User>().AsQuery().OrderBy(u => u.UserId);
+
+            var firstPage = await query.KeysetAfterAsync(null, 3);
+            Console.WriteLine($"   第 1 页（{firstPage.Count} 条）: {string.Join(", ", firstPage.Select(u => u.UserId))}");
+
+            if (firstPage.Count > 0)
+            {
+                var secondPage = await query.KeysetAfterAsync(firstPage[^1], 3);
+                Console.WriteLine($"   第 2 页（{secondPage.Count} 条）: {string.Join(", ", secondPage.Select(u => u.UserId))}");
+            }
+        }
+
+        private static async Task DemonstrateProjectionAsync(IDbAccess db)
+        {
+            // 单列投影
+            var names = await db.Set<User>().AsQuery().Select(u => u.UserName).ToListAsync();
+            Console.WriteLine($"   单列投影（前 3 个）: {string.Join(", ", names.Take(3))}");
+
+            // 多列投影 - 匿名类型（Where 在 Set<T> 上，AsQuery 用于无条件链）
+            var briefs = await db.Set<User>()
+                .Where(u => u.Age >= 28)
+                .Select(u => new { u.UserName, u.Age })
+                .ToListAsync();
+            Console.WriteLine($"   匿名类型投影（Age >= 28，共 {briefs.Count} 条）:");
+            foreach (var b in briefs.Take(3))
+            {
+                Console.WriteLine($"   - {b.UserName} ({b.Age} 岁)");
+            }
+        }
+
+        private static async Task DemonstrateAggregatesAsync(IDbAccess db)
+        {
+            long total = await db.Set<User>().AsQuery().CountAsync();
+            Console.WriteLine($"   用户总数: {total}");
+
+            bool hasAdults = await db.Set<User>().Where(u => u.Age >= 18).AnyAsync();
+            Console.WriteLine($"   存在成年人: {hasAdults}");
+
+            int? maxAge = await db.Set<User>().AsQuery().MaxAsync(u => u.Age);
+            int? minAge = await db.Set<User>().AsQuery().MinAsync(u => u.Age);
+            decimal? avgAge = await db.Set<User>().AsQuery().AverageAsync(u => u.Age);
+            Console.WriteLine($"   最大年龄: {maxAge}, 最小年龄: {minAge}, 平均年龄: {avgAge:F1}");
+        }
+
+        private static async Task DemonstrateGroupByAsync(IDbAccess db)
+        {
+            // 按状态分组统计
+            var byStatus = await db.Set<User>().AsQuery()
+                .GroupBy(u => u.Status)
+                .Select(g => new { Status = g.Key, Cnt = g.Count() })
+                .ToListAsync();
+            Console.WriteLine("   按状态分组统计:");
+            foreach (var g in byStatus)
+            {
+                Console.WriteLine($"   - 状态 {g.Status}: {g.Cnt} 位");
+            }
+
+            // 按状态分组 + HAVING + 聚合排序
+            var statusAggs = await db.Set<User>().AsQuery()
+                .GroupBy(u => u.Status)
+                .Having(g => g.Count() >= 2)
+                .OrderByDescending(g => g.Count())
+                .Select(g => new { g.Key, Cnt = g.Count(), TotalAge = g.Sum(x => x.Age) })
+                .ToListAsync();
+            Console.WriteLine("   组数 >= 2 的状态分组（按组内人数倒序）:");
+            foreach (var g in statusAggs)
+            {
+                Console.WriteLine($"   - 状态 {g.Key}: {g.Cnt} 位, 年龄合计 {g.TotalAge}");
+            }
+        }
+
         private static async Task DemonstrateCancellationTokenAsync(IDbAccess db)
         {
             using var cts = new CancellationTokenSource();
@@ -231,7 +343,7 @@ namespace EntityQueryExample
     [Xbc.DbAccess.Entity.Table("Users")]
     public class User
     {
-        [Xbc.DbAccess.Entity.Column("user_id")]
+        [Xbc.DbAccess.Entity.PrimaryKey("user_id", IsIdentity = true)]
         public int UserId { get; set; }
 
         [Xbc.DbAccess.Entity.Column("user_name")]

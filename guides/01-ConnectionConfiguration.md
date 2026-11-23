@@ -127,15 +127,19 @@ var factory = SqliteAccessFactory.CreateSqliteFactory(options =>
     // 连接池配置
     options.PoolOptions = new DbConnectionPoolOptions
     {
-        Enabled = true,                                     // 启用连接池
-        MinPoolSize = 5,                                    // 最小连接数
-        MaxPoolSize = 100,                                  // 最大连接数
-        ConnectionWaitTimeout = TimeSpan.FromSeconds(3),    // 连接等待超时
-        MaxIdleTime = TimeSpan.FromMinutes(15),             // 最大空闲时间
-        CleanupInterval = TimeSpan.FromMinutes(5)           // 清理间隔
+        Enabled = true,                                     // 启用连接池（默认 false）
+        MinPoolSize = 5,                                    // 最小连接数（默认 5）
+        MaxPoolSize = 100,                                  // 最大连接数（默认 100）
+        ConnectionWaitTimeout = TimeSpan.FromSeconds(3),    // 连接等待超时（默认 3 秒）
+        MaxIdleTime = TimeSpan.FromMinutes(15),             // 最大空闲时间（默认 15 分钟）
+        CleanupInterval = TimeSpan.FromMinutes(5),          // 清理间隔（默认 5 分钟）
+        ValidationSkipInterval = TimeSpan.FromSeconds(10),  // 跳过健康检查的间隔（默认 10 秒，Zero 表示每次激活都验证）
+        ValidationCommandTimeout = 3                        // 健康检查命令超时秒数（默认 3，0 表示不限时）
     };
 });
 ```
+
+> ⚠️ **与原生连接池二选一**：`PoolOptions` 是框架内建的进程内连接池（借用/归还，归还时连接保持打开），与 ADO.NET 提供程序的原生连接池（连接串 `Pooling` 开关）相互独立。同时启用会导致物理连接数放大——启用内建池时应在连接串中关闭原生池（如 SqlClient 的 `Pooling=false`、Npgsql 的 `Pooling=false`）。
 
 ### 2.3 事务配置选项
 

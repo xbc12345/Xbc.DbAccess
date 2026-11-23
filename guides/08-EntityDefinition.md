@@ -19,6 +19,7 @@
    - [4.3 NULL 值处理](#43-null-值处理)
    - [4.4 指定 DbType](#44-指定-dbtype)
    - [4.5 自定义类型转换器](#45-自定义类型转换器)
+   - [4.6 内置列能力开关](#46-内置列能力开关)
 5. [导航属性](#5-导航属性)
    - [5.1 一对一关系](#51-一对一关系)
    - [5.2 一对多关系](#52-一对多关系)
@@ -476,6 +477,58 @@ public class Company
 1. **属性级转换器**（`[Column(ConverterType = ...)]`）- 优先级最高
 2. **全局转换器**（`DbValueConverterRegistry`）- 优先级次之
 3. **内置转换** - 最后使用框架内置的类型转换
+
+### 4.6 内置列能力开关
+
+`[Column]` 特性还提供三个开箱即用的能力开关，覆盖最常见的特殊列形态，无需自定义转换器：
+
+**并发令牌列（乐观并发控制）**
+
+```csharp
+public class User
+{
+    public int UserId { get; set; }
+
+    [Column(IsConcurrencyToken = true)]
+    public byte[] Version { get; set; }   // 并发令牌列（rowversion/时间戳等）
+
+    public string UserName { get; set; }
+}
+```
+
+配置后，`UpdateAsync` / `DeleteAsync` 等写操作自动进行乐观并发校验并在成功后换发令牌，冲突时抛出 `DbConcurrencyException`。完整行为见 [实体集操作 - 乐观并发控制](11-EntitySet.md#9-乐观并发控制)。
+
+**枚举列以名称字符串存储**
+
+```csharp
+public class User
+{
+    public int Id { get; set; }
+
+    [Column(EnumAsString = true)]
+    public UserStatus Status { get; set; }   // 存 "Active" 而非底层整数
+}
+```
+
+- 默认存枚举的底层整数；`EnumAsString = true` 时写入名称字符串，读取按名称解析（忽略大小写）
+- 仅枚举类型列（含可空枚举）可启用
+
+**JSON 列**
+
+```csharp
+public class User
+{
+    public int Id { get; set; }
+
+    [Column(IsJson = true)]
+    public Address Address { get; set; }   // 以 System.Text.Json 序列化文本存储
+}
+```
+
+- 写入 JSON 字符串，读取按属性类型反序列化；列的数据库类型应为文本类型（如 `TEXT`/`NVARCHAR`）
+- **不能参与 WHERE 条件**（按列引用做过滤时抛异常）
+
+**互斥约束**：三个开关与 `ConverterType` 不可同时使用——`EnumAsString` 与 `IsJson` 互斥，两者任一启用均不能再配 `ConverterType`（属性元数据构建期直接抛出异常）。
 
 ## 5. 导航属性
 

@@ -9,6 +9,7 @@
    - [1.2 字典类型](#12-字典类型)
    - [1.3 DbParameterCollection、数组和集合](#13-dbparametercollection数组和集合)
    - [1.4 集合展开（IN 子句）](#14-集合展开in-子句)
+   - [1.5 插值字符串参数化（FormattableString）](#15-插值字符串参数化formattablestring)
 2. [使用 DbDataReader 执行查询](#2-使用-dbdatareader-执行查询)
 3. [使用 DbDataAdapter 填充 DataSet](#3-使用-dbdataadapter-填充-dataset)
 4. [执行非查询 SQL](#4-执行非查询-sql)
@@ -205,6 +206,41 @@ var reader = await db.ExecuteReaderAsync(
 - 集合参数名在 SQL 中需要加括号，如 `IN (@Ids)`
 - 空集合会抛出 `ArgumentException`（`IN (NULL)` 不会匹配任何行，可能掩盖逻辑错误），请确保集合中至少包含一个元素
 
+### 1.5 插值字符串参数化（FormattableString）
+
+C# 内插字符串 `$"..."` 写法天然易读，但普通 `string` 参数会把插值孔在调用点拼进 SQL 文本，构成注入风险。框架提供了一组 `*InterpolatedAsync` 扩展（EF `FromSqlInterpolated` 同款语义）：参数类型为 `FormattableString`，插值孔一律转为数据库参数，**值永不进入 SQL 文本**。
+
+```csharp
+// 插值孔自动转为参数：生成的 SQL 形如 ... WHERE Name = @fs_0，值为参数
+string name = "张三";
+int minAge = 18;
+
+await using (var reader = await db.ExecuteReaderInterpolatedAsync(
+    $"SELECT * FROM Users WHERE Name = {name} AND Age >= {minAge}"))
+{
+    while (await reader.ReadAsync())
+    {
+        Console.WriteLine(reader["Email"]);
+    }
+}
+
+// 其他执行方式同样有插值版本
+int count = await db.ExecuteNonQueryInterpolatedAsync(
+    $"UPDATE Users SET Age = {26} WHERE Id = {1}");
+
+var dataSet = await db.ExecuteDataSetInterpolatedAsync(
+    $"SELECT * FROM Users WHERE Age > {minAge}");
+
+string userName = await db.ExecuteScalarInterpolatedAsync<string>(
+    $"SELECT Name FROM Users WHERE Id = {1}");
+```
+
+**关键安全语义**：
+
+- 方法只接受 `FormattableString`（`string` 无隐式转换）：调用点必须内联 `$"..."` 书写，先物化字符串再传入会**编译失败**，最常见的误用形态被编译期封死
+- ⚠️ **插值字符串错觉**：对裸 SQL 入口（如 `ExecuteNonQueryAsync`）写 `$"... WHERE Name = {userName}"` 不构成任何防护——参数类型是 `string`，编译器在调用点即完成拼接，与手动 `+` 拼接完全等价。安全入口只有 `*InterpolatedAsync` 系列
+- 字面花括号照常转义：SQL 中要输出 `{` / `}` 写 `{{` / `}}`
+
 **三种方式的对比**：
 
 | 特性        | 匿名对象  | 字典   | DbParameterCollection/数组/集合 |
@@ -354,20 +390,12 @@ int count = await db.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM Users");
 int age = await db.ExecuteScalarAsync<int>("SELECT Age FROM Users WHERE Id = 1");
 
 // 可空类型 - 查询结果为空时返回 null
-int? age = await db.ExecuteScalarAsync<int?>("SELECT Age FROM Users WHERE Id = 1");
-DateTime? createTime = await db.ExecuteScalarAsync<DateTime?>("SELECT CreateTime FROM Users WHERE Id = 1");
-Guid? departmentId = await db.ExecuteScalarAsync<Guid?>("SELECT DepartmentId FROM Users WHERE Id = 1");
-
-// 可空类型 - 查询结果为空字符串时返回 null
-int? age = await db.ExecuteScalarAsync<int?>("SELECT Age FROM Users WHERE Id = 1");
+int? nullableAge = await db.ExecuteScalarAsync<int?>("SELECT Age FROM Users WHERE Id = 1");
 DateTime? createTime = await db.ExecuteScalarAsync<DateTime?>("SELECT CreateTime FROM Users WHERE Id = 1");
 Guid? departmentId = await db.ExecuteScalarAsync<Guid?>("SELECT DepartmentId FROM Users WHERE Id = 1");
 
 // 引用类型 - 查询结果为空时返回 null
-string name = await db.ExecuteScalarAsync<string>("SELECT Name FROM Users WHERE Id = 1");
-
-// 引用类型 - 查询结果为空字符串时返回 string.Empty
-string name = await db.ExecuteScalarAsync<string>("SELECT Name FROM Users WHERE Id = 1");
+string name = await db.ExecuteScalarAsync<string>("SELECT Name FROM Users WHERE Id = 999");
 ```
 
 ### 5.3 DbValueConvert
@@ -475,6 +503,7 @@ await using (var reader = await db.ExecuteReaderWithPaginationAsync(
 | `ExecuteDataSetAsync`          | DataSet      | 离线数据处理，多表结果          | 高    |
 | `ExecuteReaderWithPaginationAsync`  | DbDataReader | 分页查询，流式读取            | 低    |
 | `ExecuteDataSetWithPaginationAsync` | DataSet      | 分页查询，离线处理            | 中    |
+| `Execute*InterpolatedAsync` 系列 | 同对应裸方法       | SQL 内含运行时值的插值写法（防注入） | 同对应裸方法 |
 
 **选择合适的查询方法：**
 
@@ -487,15 +516,19 @@ await using (var reader = await db.ExecuteReaderWithPaginationAsync(
 ### 7.2 使用参数化查询防止 SQL 注入
 
 ```csharp
-// 安全的方式 - 使用匿名对象
+// 安全的方式 1 - 使用匿名对象
 var reader = await db.ExecuteReaderAsync(
     "SELECT * FROM Users WHERE Name = @Name",
     new { Name = userInput });
 
+// 安全的方式 2 - 使用插值参数化入口（见 1.5 节）
+var reader2 = await db.ExecuteReaderInterpolatedAsync(
+    $"SELECT * FROM Users WHERE Name = {userInput}");
+
 // 危险的方式（不要这样做），容易导致 SQL 注入攻击
 // 例如：用户输入 "admin' OR '1' = '1" 会导致查询所有用户
 var sql = $"SELECT * FROM Users WHERE Name = '{userInput}'";
-var reader = await db.ExecuteReaderAsync(sql);
+var reader3 = await db.ExecuteReaderAsync(sql);
 ```
 
 ### 7.3 始终使用 using 语句

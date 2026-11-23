@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Moq;
 using Xbc.DbAccess;
+using Xbc.DbAccess.Common;
 using Xbc.DbAccess.Diagnostics;
 using Xunit;
 
@@ -53,12 +54,17 @@ namespace Xbc.DbAccess.UnitTests.Diagnostics
         /// </summary>
         private static DbConnectionTrackingInfo CreateTrackingInfo(TimeSpan? holdDuration = null)
         {
+            // AcquiredTimestamp 是 Stopwatch 刻度而非 TimeSpan 刻度（两者频率不同，Linux 上 Stopwatch.Frequency 通常为 1e9/s），
+            // 需按频率换算回溯时长：当前刻度 - hold 时长对应的 Stopwatch 刻度
+            var holdStopwatchTicks = holdDuration.HasValue
+                ? (long)(holdDuration.Value.Ticks * (double)StopwatchClock.Frequency / TimeSpan.TicksPerSecond)
+                : 0;
             return new DbConnectionTrackingInfo
             {
                 ConnectionId = Guid.NewGuid(),
                 CreatedAt = DateTime.Now,
                 AcquiredAt = holdDuration.HasValue ? DateTime.Now.Add(-holdDuration.Value) : DateTime.Now,
-                AcquiredTimestamp = holdDuration.HasValue ? -holdDuration.Value.Ticks : 0,
+                AcquiredTimestamp = StopwatchClock.ElapsedTicks - holdStopwatchTicks,
                 State = DbConnectionTrackingState.Active
             };
         }

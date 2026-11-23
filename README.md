@@ -152,17 +152,18 @@ var usersWithOrders = await db.FromSql<User>("SELECT * FROM Users")
 | --- | --- |
 | [01 连接配置选项](guides/01-ConnectionConfiguration.md) | `DbConnectionOptions` 连接配置 |
 | [02 连接池](guides/02-ConnectionPool.md) | 连接池配置与行为 |
-| [03 创建 IDbAccess 实例](guides/03-CreateIDbAccess.md) | 工厂模式与依赖注入集成 |
-| [04 执行 SQL](guides/04-ExecuteSql.md) | 参数化查询、Reader / DataSet / 标量 / 分页 |
+| [03 创建 IDbAccess 实例](guides/03-CreateIDbAccess.md) | 工厂模式与依赖注入集成（含多数据库） |
+| [04 执行 SQL](guides/04-ExecuteSql.md) | 参数化查询、插值参数化、Reader / DataSet / 标量 / 分页 |
 | [05 事务](guides/05-Transaction.md) | 事务与保存点嵌套 |
 | [06 连接作用域](guides/06-ConnectionScope.md) | 连接作用域内复用连接 |
 | [07 存储过程](guides/07-StoredProcedure.md) | 存储过程执行与输出参数 |
-| [08 实体类的定义](guides/08-EntityDefinition.md) | Table / Column / 主键 / 导航特性 |
+| [08 实体类的定义](guides/08-EntityDefinition.md) | Table / Column / 主键 / 导航特性、内置列能力开关 |
 | [09 实体映射与缓存治理](guides/09-EntityMapping.md) | 实体映射与缓存治理 |
-| [10 IEntityQuery](guides/10-EntityQuery.md) | 实体查询：投影、分页、Include |
-| [11 IEntitySet](guides/11-EntitySet.md) | 实体增删改查与批量操作 |
+| [10 IEntityQuery](guides/10-EntityQuery.md) | 实体查询：谓词表达式、投影、聚合、GroupBy、窗口与 keyset 分页、Include |
+| [11 IEntitySet](guides/11-EntitySet.md) | 实体增删改查、Upsert、条件写入、乐观并发与批量操作 |
+| [12 可观测性诊断](guides/12-Diagnostics.md) | 日志、慢查询告警、指标、链路追踪与连接泄漏追踪 |
 
-可运行示例代码位于 `guides/examples/`（11 个工程随构建验证）。
+可运行示例代码位于 `guides/examples/`（12 个工程随构建验证）。
 
 ## License
 

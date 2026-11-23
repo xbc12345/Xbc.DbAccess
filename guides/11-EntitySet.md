@@ -10,8 +10,10 @@
 4. [插入操作](#4-插入操作)
 5. [更新操作](#5-更新操作)
 6. [删除操作](#6-删除操作)
-7. [批量操作](#7-批量操作)
-8. [完整示例](#8-完整示例)
+7. [Upsert 操作](#7-upsert-操作)
+8. [批量操作](#8-批量操作)
+9. [乐观并发控制](#9-乐观并发控制)
+10. [完整示例](#10-完整示例)
 
 ## 1. IEntitySet 概述
 
@@ -23,13 +25,16 @@
 |------|------|
 | 自动生成 SQL | 根据实体元数据自动构建 INSERT、UPDATE、DELETE 语句 |
 | 自增列支持 | 插入后自动获取并填充自增 ID |
-| 批量操作 | 支持批量插入、更新、删除，自动优化执行策略 |
+| 表达式写入 | 条件更新 / 条件删除用 lambda 表达式书写，值参数化、列名经方言引用 |
+| Upsert | 存在则更新、不存在则插入，方言差异自动抹平 |
+| 批量操作 | 支持批量插入、更新、删除；大批量数据有原生 bulk 路径（SqlBulkCopy / COPY） |
+| 乐观并发 | 并发令牌列自动校验与换发，冲突抛 `DbConcurrencyException` |
 | 事务保证 | 批量操作自动使用事务，确保数据一致性 |
 | 仅提供异步方法 | 所有方法均为异步，全部支持 `CancellationToken` |
 
 ### 1.2 导航属性说明（重要）
 
-**Insert/Update/Delete 仅操作主实体本身，不处理导航属性数据；导航属性数据需业务代码显式管理。**
+**Insert/Update/Delete/Upsert 仅操作主实体本身，不处理导航属性数据；导航属性数据需业务代码显式管理。**
 
 - 1:1 导航引用已赋值时，插入/更新会将其目标主键同步到主实体的外键列（纯内存同步，不查库、不递归）；
 - 1:N 集合导航已赋值时，插入/更新后会同步对方实体的外键列（默认值回填本方主键值，已有值以对方外键为准）；对方实体的入库仍由调用方负责；
@@ -38,14 +43,15 @@
 
 ### 1.3 方法一览
 
-| 操作 | 单条 | 批量 |
-|------|------|------|
-| 查询 | FindAsync | - |
-| 插入 | InsertAsync | InsertRangeAsync |
-| 更新 | UpdateAsync | UpdateRangeAsync |
-| 删除 | DeleteAsync | DeleteRangeAsync |
+| 操作 | 单条 | 按条件 | 批量 |
+|------|------|--------|------|
+| 查询 | FindAsync | Where / AsQuery | - |
+| 插入 | InsertAsync | - | InsertRangeAsync / BulkInsertAsync |
+| 更新 | UpdateAsync（全列） | UpdateAsync（条件赋值） | UpdateRangeAsync |
+| 删除 | DeleteAsync | DeleteAsync（条件） | DeleteRangeAsync |
+| Upsert | UpsertAsync | - | - |
 
-所有方法均返回 `Task<int>`（受影响行数；单条操作即当前实体的受影响行数）。
+除查询方法外均返回 `Task<int>`（受影响行数；`BulkInsertAsync` 返回 `Task<long>`）。
 
 ## 2. 获取 IEntitySet
 
@@ -172,6 +178,28 @@ if (user != null)
 
 - 更新操作根据主键定位记录，实体必须有主键列。
 - 主键列和自增列不会被更新。
+- **更新不做变更追踪**：除主键与自增列外的所有列都会进入 SET 子句。实体须为完整查询（如 `FindAsync`）加载的完整实体——部分投影或手工构造的实体会以属性默认值覆盖数据库原值。
+
+### 5.2 UpdateAsync - 条件更新
+
+按条件将满足谓词的所有行的指定列更新为赋值表达式的值：
+
+```csharp
+// 将状态为 0 的用户全部激活（对象初始化器形态）
+int rows = await db.Set<User>()
+    .UpdateAsync(u => new User { Status = 1, UpdatedAt = DateTime.Now },
+                 u => u.Status == 0);
+
+// 匿名类型形态
+int rows2 = await db.Set<User>()
+    .UpdateAsync(u => new { Age = 26 }, u => u.Id == 1);
+```
+
+**规则**：
+
+- 赋值表达式支持对象初始化器（`x => new User { Age = 18 }`）与匿名类型（`x => new { Age = 18 }`）；不支持元组与带参构造形态（两者无成员名承载「更新哪一列」的寻址语义）
+- 赋值到主键列、标识列或导航属性、重复赋值同一列时抛出异常
+- 条件表达式能力与 `Where` 谓词一致（比较/逻辑运算、布尔列、`IS [NOT] NULL`、集合 `Contains`（IN）、字符串匹配等）；闭包变量一律参数化
 
 ## 6. 删除操作
 
@@ -198,9 +226,50 @@ int rowsAffected = await db.Set<User>().DeleteAsync(userToDelete);
 - 删除操作根据主键定位记录，只需设置主键属性即可。
 - 删除仅作用于主实体行，不级联删除子实体：若主实体被子记录的外键引用，删除将失败，需先删除子记录或使用数据库级联删除约束。
 
-## 7. 批量操作
+### 6.2 DeleteAsync - 条件删除
 
-### 7.1 InsertRangeAsync - 批量插入
+按谓词表达式删除满足条件的所有行：
+
+```csharp
+// 删除所有状态为 0 且从未登录的用户
+int rows = await db.Set<User>()
+    .DeleteAsync(u => u.Status == 0 && u.LastLoginAt == null);
+```
+
+条件表达式能力与 `Where` 谓词一致；闭包变量一律参数化。不级联删除对方实体（被外键引用时抛数据库原生外键约束异常）。
+
+## 7. Upsert 操作
+
+### 7.1 UpsertAsync - 存在则更新，不存在则插入
+
+按主键做冲突判定：目标行存在则更新，不存在则插入。冲突键为实体主键，实体没有主键时抛出异常：
+
+```csharp
+var user = new User { UserId = 1, UserName = "张三", Email = "zhangsan@example.com", Age = 25 };
+
+// UserId = 1 不存在时插入，存在时更新
+int rows = await db.Set<User>().UpsertAsync(user);
+```
+
+**行为细节**：
+
+- 更新列覆盖除主键、自增列外的**全部列**（不做变更追踪），调用方需自行避免覆盖并发修改
+- 自增主键为默认值时必走插入路径并回填生成的 ID（取回机制与 `InsertAsync` 一致）；带显式值时按该值参与冲突判定（无需回填）
+- 1:1 引用外键同步在写入前执行，1:N 集合外键同步在写入后执行（与 `InsertAsync` 一致）
+- 配置并发令牌列时：每次 Upsert 换发新令牌写入；Upsert 本身不做令牌校验（冲突键恒为主键），失败时恢复实体的旧令牌
+
+**方言差异**：
+
+| 方言 | 冲突判定 | 更新路径受影响行数 |
+|------|----------|--------------------|
+| SQL Server / PostgreSQL / Oracle / SQLite | 严格按主键冲突 | 1 |
+| MySQL | 覆盖**所有唯一键**（不只主键） | 2 |
+
+> ⚠️ MySQL 的 `INSERT ... ON DUPLICATE KEY UPDATE` 语义会对任意唯一键冲突触发更新，业务上依赖「仅主键冲突」语义时请注意该差异。
+
+## 8. 批量操作
+
+### 8.1 InsertRangeAsync - 批量插入
 
 ```csharp
 // 创建多个用户
@@ -229,7 +298,7 @@ foreach (var user in users)
 | 无自增列 | 使用多值 INSERT 语句（`INSERT INTO ... VALUES (...), (...), ...`），性能最优 |
 | 有自增列 | 逐条插入并获取 ID，使用事务保证一致性 |
 
-### 7.2 UpdateRangeAsync - 批量更新
+### 8.2 UpdateRangeAsync - 批量更新
 
 ```csharp
 // 查询需要更新的用户
@@ -248,7 +317,9 @@ int rowsAffected = await db.Set<User>().UpdateRangeAsync(users);
 Console.WriteLine($"批量更新了 {rowsAffected} 条记录");
 ```
 
-### 7.3 DeleteRangeAsync - 批量删除
+**注意**：与 `UpdateAsync` 一致，不做变更追踪、全列 SET，实体须为完整查询加载的完整实体。配置并发令牌列时逐条做乐观并发校验，任一冲突抛 `DbConcurrencyException` 并由外层事务整体回滚。
+
+### 8.3 DeleteRangeAsync - 批量删除
 
 ```csharp
 // 查询需要删除的用户
@@ -261,9 +332,88 @@ int rowsAffected = await db.Set<User>().DeleteRangeAsync(users);
 Console.WriteLine($"批量删除了 {rowsAffected} 条记录");
 ```
 
-**批量删除策略**：使用 `IN` 子句一次性删除，比逐条删除更高效。
+**批量删除策略**：使用 `IN` 子句一次性删除，比逐条删除更高效。配置并发令牌列时退化为事务内逐条删除（IN 子句无法逐行校验令牌），任一冲突抛 `DbConcurrencyException` 并整体回滚。
 
-## 8. 完整示例
+### 8.4 BulkInsertAsync - 高性能批量写入
+
+面向大批量数据的高性能写入。有原生批量写入 API 的方言走原生路径，无原生 API 的方言回退多值 INSERT：
+
+```csharp
+// 大批量数据写入（如数据迁移、日志导入）
+var bulkUsers = Enumerable.Range(1, 100_000)
+    .Select(i => new User { UserName = $"user{i}", Email = $"user{i}@example.com", Age = 20 + i % 40 });
+
+long inserted = await db.Set<User>().BulkInsertAsync(bulkUsers);
+Console.WriteLine($"bulk 插入 {inserted} 条记录");
+
+// 可选：指定批次大小与命令超时（仅原生路径生效，回退路径静默忽略）
+var options = new BulkInsertOptions
+{
+    BatchSize = 5000,
+    CommandTimeout = 60
+};
+await db.Set<User>().BulkInsertAsync(bulkUsers, options);
+```
+
+**与 `InsertRangeAsync` 的区别**：
+
+| | InsertRangeAsync | BulkInsertAsync |
+|---|---|---|
+| 适用场景 | 中小批量、需要回填自增 ID | 大批量数据（数万行以上） |
+| 自增 ID 回填 | 是 | **否**（自增列被忽略且不回填） |
+| 写入路径 | 多值 INSERT / 逐条+事务 | SqlBulkCopy / COPY / 多值 INSERT 回退 |
+| 导航属性外键同步 | 是 | 是 |
+| 并发令牌 | 不涉及 | 为每个实体生成初始令牌 |
+
+**注意**：
+
+- 整批在事务中执行（已有活动事务时自动嵌套为保存点子事务）
+- 全部列为自增列的退化场景抛出异常
+- 部分方言的原生路径默认不校验 CHECK/外键约束、不触发触发器；NULL 值按字面写入
+- 入参为 null、空集合或包含 null 元素时抛 `ArgumentException`
+
+## 9. 乐观并发控制
+
+实体列配置并发令牌（`[Column(IsConcurrencyToken = true)]`，`byte[]` 类型）后，写操作自动进行乐观并发校验：
+
+```csharp
+public class User
+{
+    public int UserId { get; set; }
+
+    [Column(IsConcurrencyToken = true)]
+    public byte[] Version { get; set; }   // 并发令牌列
+
+    public string UserName { get; set; }
+}
+```
+
+**行为**：
+
+| 操作 | 并发行为 |
+|------|----------|
+| `UpdateAsync` | WHERE 子句附加旧令牌条件；更新成功后自动换发并回填新令牌 |
+| `DeleteAsync` | WHERE 子句附加旧令牌条件 |
+| `UpdateRangeAsync` / `DeleteRangeAsync` | 事务内逐条校验；任一冲突抛 `DbConcurrencyException` 并整体回滚 |
+| `UpsertAsync` | 每次换发新令牌写入（本身不做校验，冲突键恒为主键） |
+| `BulkInsertAsync` | 为每个实体生成初始令牌 |
+
+影响行数为 0（目标行不存在**或令牌已被并发修改**）时抛出 `DbConcurrencyException`；未配置令牌列时静默返回 0：
+
+```csharp
+try
+{
+    var user = await db.Set<User>().FindAsync(1);
+    user.Age = 26;
+    await db.Set<User>().UpdateAsync(user);   // 令牌自动校验 + 换发
+}
+catch (DbConcurrencyException)
+{
+    // 目标行不存在或已被其他请求并发修改，按业务策略重试或提示
+}
+```
+
+## 10. 完整示例
 
 ```csharp
 using Xbc.DbAccess;
@@ -288,6 +438,16 @@ int updateRows = await userSet.UpdateAsync(user);
 // 删除
 int deleteRows = await userSet.DeleteAsync(user);
 
+// Upsert（存在则更新，不存在则插入）
+var upsertUser = new User { UserId = 1, UserName = "张三", Email = "zhangsan@example.com", Age = 26 };
+int upsertRows = await userSet.UpsertAsync(upsertUser);
+
+// 条件更新
+int updated = await userSet.UpdateAsync(u => new { Status = 1 }, u => u.Status == 0);
+
+// 条件删除
+int deleted = await userSet.DeleteAsync(u => u.Status == 0);
+
 // 批量插入
 var users = new List<User>
 {
@@ -295,6 +455,10 @@ var users = new List<User>
     new User { UserName = "王五", Email = "wangwu@example.com", Age = 35 }
 };
 int batchRows = await userSet.InsertRangeAsync(users);
+
+// 高性能批量写入（大批量数据，不回填自增 ID）
+long bulkRows = await userSet.BulkInsertAsync(
+    Enumerable.Range(1, 1000).Select(i => new User { UserName = $"u{i}", Age = i % 50 }));
 ```
 
 **完整代码**：可运行的完整示例代码请参见 [examples/11_EntitySet/Program.cs](./examples/11_EntitySet/Program.cs)

@@ -172,37 +172,46 @@ services.AddScoped<IDbAccess>(provider =>
 
 ### 2.3 ASP.NET Core 配置
 
+框架在各方言包中内置了 DI 注册扩展（`AddSqliteDbAccess` / `AddSqlServerDbAccess` / `AddMySqlDbAccess` / `AddNpgsqlDbAccess` / `AddOracleDbAccess`），自动注册工厂（单例）与 `IDbAccess`（Scoped），**推荐优先使用**：
+
 ```csharp
 // appsettings.json
 {
     "ConnectionStrings": {
-        "Default": "..."
+        "Default": "Data Source=myapp.db"
     }
 }
 
 // Program.cs
-using Xbc.DbAccess;
 using Xbc.DbAccess.Sqlite;
 
 // 从配置文件中读取连接字符串
 var connectionString = builder.Configuration.GetConnectionString("Default");
 
-// 注册工厂（单例生命周期 - 不管什么场景都应该注册为单例）
-builder.Services.AddSingleton<IDbAccessFactory>(provider =>
-{
-    return SqliteAccessFactory.CreateSqliteFactory(options =>
-    {
-        // 连接字符串
-        options.ConnectionString = connectionString;
-    });
-});
+// 一行完成注册：工厂（Singleton）+ IDbAccess（Scoped）
+builder.Services.AddSqliteDbAccess(connectionString);
+```
 
-// 注册 IDbAccess（Scoped 生命周期 - 推荐）
-builder.Services.AddScoped<IDbAccess>(provider =>
+也可以用配置委托做完整连接配置：
+
+```csharp
+builder.Services.AddSqliteDbAccess(options =>
 {
-    var factory = provider.GetRequiredService<IDbAccessFactory>();
-    return factory.Create();
+    options.ConnectionString = connectionString;
+    options.PoolOptions = new DbConnectionPoolOptions { Enabled = true };
 });
+```
+
+**其他 DI 容器**（如 Autofac）：可手动注册，生命周期约定不变——工厂单例、`IDbAccess` Scoped：
+
+```csharp
+// 手动注册（框架内置扩展不可用时）
+builder.Services.AddSingleton<IDbAccessFactory>(provider =>
+    SqliteAccessFactory.CreateSqliteFactory(options =>
+        options.ConnectionString = connectionString));
+
+builder.Services.AddScoped<IDbAccess>(provider =>
+    provider.GetRequiredService<IDbAccessFactory>().Create());
 ```
 
 ### 2.4 在控制器中使用
@@ -428,7 +437,9 @@ public class AdvancedDataService
 
 ### 3.5 多数据库场景
 
-**注册多个数据库工厂**
+**注册多个命名数据库**
+
+框架支持命名注册，配合 `IDbAccessFactoryProvider` 按名称解析。在各方言扩展上指定名称即可：
 
 ```csharp
 // appsettings.json
@@ -441,65 +452,52 @@ public class AdvancedDataService
         "MinPoolSize": 10,
         "MaxPoolSize": 200
       },
-      "ConnectionTrackingOptions": {
-        "Enabled": true,
-        "RecordStackTrace": true
-      },
       "EnableStatistics": true
     },
     "LogDb": {
-      "ConnectionString": "Data Source=logs.db",
-      "PoolOptions": {
-        "Enabled": true,
-        "MinPoolSize": 2,
-        "MaxPoolSize": 20
-      }
+      "ConnectionString": "Data Source=logs.db"
     }
   }
 }
 
-// Program.cs - 注册多个工厂
-builder.Services.AddSingleton<IDbAccessFactory>("PrimaryDb", provider =>
-{
-    var configuration = provider.GetRequiredService<IConfiguration>();
-    var options = configuration.GetSection("DbOptions:PrimaryDb").Get<DbConnectionOptions>();
-    return SqlAccessFactory.CreateSqlServerFactory(options);
-});
+// Program.cs - 命名注册（默认数据库 + 命名数据库可并存）
+builder.Services.AddSqlServerDbAccess(options =>
+    builder.Configuration.GetSection("DbOptions:PrimaryDb").Bind(options));
 
-builder.Services.AddSingleton<IDbAccessFactory>("LogDb", provider =>
-{
-    var configuration = provider.GetRequiredService<IConfiguration>();
-    var options = configuration.GetSection("DbOptions:LogDb").Get<DbConnectionOptions>();
-    return SqliteAccessFactory.CreateSqliteFactory(options);
-});
+builder.Services.AddSqliteDbAccess("LogDb", options =>
+    builder.Configuration.GetSection("DbOptions:LogDb").Bind(options));
 ```
 
-**在服务中使用工厂创建 IDbAccess 实例**
+也可以直接传连接字符串：
+
+```csharp
+builder.Services.AddSqlServerDbAccess("PrimaryDb", "Server=localhost;Database=Primary;...");
+builder.Services.AddSqliteDbAccess("LogDb", "Data Source=logs.db");
+```
+
+**在服务中按名称使用**
+
+注入 `IDbAccessFactoryProvider`，按名称取工厂或直接创建 `IDbAccess`：
 
 ```csharp
 public class MultiDbService
 {
-    private readonly IDbAccessFactory _primaryFactory;
-    private readonly IDbAccessFactory _logFactory;
-    
-    public MultiDbService(
-        [FromKeyedServices("PrimaryDb")] IDbAccessFactory primaryFactory,
-        [FromKeyedServices("LogDb")] IDbAccessFactory logFactory)
+    private readonly IDbAccessFactoryProvider _factoryProvider;
+
+    public MultiDbService(IDbAccessFactoryProvider factoryProvider)
     {
-        _primaryFactory = primaryFactory;
-        _logFactory = logFactory;
+        _factoryProvider = factoryProvider;
     }
-    
+
     public async Task ProcessDataAsync()
     {
-        // 使用主数据库
-        using (var primaryDb = _primaryFactory.Create())
+        // 按名称创建 IDbAccess 实例，用完释放
+        using (var primaryDb = _factoryProvider.Create("PrimaryDb"))
         {
             await using var reader = await primaryDb.ExecuteReaderAsync("SELECT * FROM Users");
         }
 
-        // 使用日志数据库
-        using (var logDb = _logFactory.Create())
+        using (var logDb = _factoryProvider.Create("LogDb"))
         {
             await logDb.ExecuteNonQueryAsync("INSERT INTO Logs (Message) VALUES ('Operation completed')");
         }
@@ -507,50 +505,19 @@ public class MultiDbService
 }
 ```
 
-**注册 IDbAccess 为 Scoped 生命周期**
-
-多数据库场景下，可以通过命名服务注册多个 `IDbAccess`：
+也可以按名称取工厂后在需要时手动创建：
 
 ```csharp
-// Program.cs - 注册多个 IDbAccess
-builder.Services.AddScoped<IDbAccess>("PrimaryDb", provider =>
-{
-    var factory = provider.GetRequiredKeyedService<IDbAccessFactory>("PrimaryDb");
-    return factory.Create();
-});
-
-builder.Services.AddScoped<IDbAccess>("LogDb", provider =>
-{
-    var factory = provider.GetRequiredKeyedService<IDbAccessFactory>("LogDb");
-    return factory.Create();
-});
-
-// 在服务中使用
-public class MultiDbService
-{
-    private readonly IDbAccess _primaryDb;
-    private readonly IDbAccess _logDb;
-    
-    public MultiDbService(
-        [FromKeyedServices("PrimaryDb")] IDbAccess primaryDb,
-        [FromKeyedServices("LogDb")] IDbAccess logDb)
-    {
-        _primaryDb = primaryDb;
-        _logDb = logDb;
-    }
-    
-    public async Task ProcessDataAsync()
-    {
-        await using var users = await _primaryDb.ExecuteReaderAsync("SELECT * FROM Users");
-        await _logDb.ExecuteNonQueryAsync("INSERT INTO Logs (Message) VALUES ('Operation completed')");
-    }
-}
+IDbAccessFactory factory = _factoryProvider.GetFactory("LogDb");
+using var db = factory.Create();
 ```
 
 **注意事项**：
 
-- 多数据库场景下，每个 `IDbAccess` 实例独立管理自己的连接
-- 确保在请求结束时正确释放所有 `IDbAccess` 实例
+- 命名注册只注册 `IDbAccessFactoryProvider`，不提供默认的 `IDbAccessFactory` / `IDbAccess` 注入；如需默认数据库，再额外调用一次不带名称的 `AddXxxDbAccess` 重载
+- `_factoryProvider.Names` 可枚举所有已注册的数据库名称
+- 名称需唯一，重复注册同一名称在构建工厂提供器或调用 `Register` 时抛出 `InvalidOperationException`
+- 多数据库场景下，每个 `IDbAccess` 实例独立管理自己的连接，确保用完释放
 
 ### 3.6 在单例服务中使用 IDbAccessFactory
 
