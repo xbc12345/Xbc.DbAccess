@@ -371,6 +371,7 @@ await db.Set<User>().BulkInsertAsync(bulkUsers, options);
 - 全部列为自增列的退化场景抛出异常
 - 部分方言的原生路径默认不校验 CHECK/外键约束、不触发触发器；NULL 值按字面写入
 - 入参为 null、空集合或包含 null 元素时抛 `ArgumentException`
+- **MySQL 前置条件**：原生路径基于 `MySqlBulkCopy`（LOAD DATA LOCAL），要求连接串显式加 `AllowLoadLocalInfile=true`，且服务端开启 `local_infile`（`SET GLOBAL local_infile = ON`）；缺省时抛出 `MySqlException`
 
 ## 9. 乐观并发控制
 

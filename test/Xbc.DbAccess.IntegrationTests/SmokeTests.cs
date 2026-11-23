@@ -122,7 +122,8 @@ namespace Xbc.DbAccess.IntegrationTests
             user.Age = 26;
             user.Name = "BobUpdated";
             var affectedRows = await entitySet.UpsertAsync(user);
-            Assert.Equal(1, affectedRows);
+            // MySQL 的 ON DUPLICATE KEY UPDATE 更新路径按协议返回 2（插入 1/变更 2/未变更 0），其余方言返回 1
+            Assert.Equal(Dialect == RealDbDialect.MySql ? 2 : 1, affectedRows);
 
             Assert.Equal(1, await entitySet.AsQuery().CountAsync());
             var found = await entitySet.FindAsync(user.Id);
