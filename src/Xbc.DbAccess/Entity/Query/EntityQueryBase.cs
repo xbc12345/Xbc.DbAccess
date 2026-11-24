@@ -371,7 +371,7 @@ namespace Xbc.DbAccess.Entity
         /// </summary>
         public async Task<long> CountAsync(CancellationToken cancellationToken = default)
         {
-            var innerSql = await BuildAggregateTargetSqlAsync(cancellationToken).ConfigureAwait(false);
+            var innerSql = await BuildAggregateTargetSqlAsync().ConfigureAwait(false);
 
             // 派生表别名：SQL Server 必须有，Oracle 不允许派生表用 AS（与 SqlBuilderBase 窗口路径一致），直接跟别名
             var sqlBuilder = new StringBuilder();
@@ -389,7 +389,7 @@ namespace Xbc.DbAccess.Entity
         /// </summary>
         public async Task<bool> AnyAsync(CancellationToken cancellationToken = default)
         {
-            var innerSql = await BuildAggregateTargetSqlAsync(cancellationToken).ConfigureAwait(false);
+            var innerSql = await BuildAggregateTargetSqlAsync().ConfigureAwait(false);
 
             // ScalarSelectFromClause：Oracle 需要 FROM DUAL，其他方言为 null/空串无影响
             var sqlBuilder = new StringBuilder();
@@ -419,7 +419,7 @@ namespace Xbc.DbAccess.Entity
             var translation = translator.Translate(predicate);
             var allParameters = originalParameters.Concat(translation.Parameters).ToArray();
 
-            var innerSql = await BuildAggregateTargetSqlAsync(cancellationToken).ConfigureAwait(false);
+            var innerSql = await BuildAggregateTargetSqlAsync().ConfigureAwait(false);
             var sqlBuilder = new StringBuilder();
             sqlBuilder.AppendLine("SELECT CASE WHEN NOT EXISTS (");
             sqlBuilder.AppendLine("    SELECT 1 FROM (");
@@ -539,7 +539,7 @@ namespace Xbc.DbAccess.Entity
         /// <returns>聚合结果的原始值；无匹配行时为 <see cref="DBNull.Value"/>。</returns>
         private async Task<object> ExecuteAggregateScalarAsync(ColumnMetadata column, string aggregateFunction, CancellationToken cancellationToken)
         {
-            var innerSql = await BuildAggregateTargetSqlAsync(cancellationToken).ConfigureAwait(false);
+            var innerSql = await BuildAggregateTargetSqlAsync().ConfigureAwait(false);
 
             // 别名带随机段，避免与查询 SQL 中已有别名/列名撞名
             var queryAlias = SqlIdentifierHelper.Generate("q");
@@ -561,7 +561,7 @@ namespace Xbc.DbAccess.Entity
         /// <summary>
         /// 构建聚合目标 SQL：窗口状态时为窗口行集（统计窗口内行，窗口状态先经终结端校验）；否则为原始查询。
         /// </summary>
-        private async Task<string> BuildAggregateTargetSqlAsync(CancellationToken cancellationToken)
+        private async Task<string> BuildAggregateTargetSqlAsync()
         {
             var hasWindowState = EntityQuerySqlHelpers.ValidateWindowState(orderings, skip, take);
             if (hasWindowState)

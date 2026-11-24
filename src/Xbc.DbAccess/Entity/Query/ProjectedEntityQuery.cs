@@ -100,13 +100,13 @@ namespace Xbc.DbAccess.Entity
                 // top-N 计划流式中途即停，避免全量排序后逐行流出；Single 系取 2 行用于多条检测
                 var fetchLimit = ensureSingle ? 2 : 1;
                 var fetch = take.HasValue ? Math.Min(take.Value, fetchLimit) : (int?)fetchLimit;
-                executedSql = await BuildSingleProjectionSqlAsync(cancellationToken, fetch.Value).ConfigureAwait(false);
+                executedSql = await BuildSingleProjectionSqlAsync(fetch.Value).ConfigureAwait(false);
             }
             else
             {
                 // 无排序无窗口时流式直读：无行序需兑现，服务端无物化代价；截断需按方言改写 SELECT 结构
                 // （TOP 1/ROWNUM 等），风险大于「提前终止扫描」的有限收益，故不截断
-                executedSql = await BuildProjectionSqlAsync(cancellationToken).ConfigureAwait(false);
+                executedSql = await BuildProjectionSqlAsync().ConfigureAwait(false);
             }
 
             return await ExecuteSingleCoreAsync(executedSql, originalParameters, throwIfEmpty, ensureSingle, cancellationToken).ConfigureAwait(false);
@@ -140,7 +140,7 @@ namespace Xbc.DbAccess.Entity
         {
             // 校验并取窗口态
             EntityQuerySqlHelpers.ValidateWindowState(orderings, skip, take);
-            var executedSql = await BuildProjectionSqlAsync(cancellationToken).ConfigureAwait(false);
+            var executedSql = await BuildProjectionSqlAsync().ConfigureAwait(false);
 
             using (var reader = await dbAccess.ExecuteReaderAsync(executedSql, originalParameters, cancellationToken).ConfigureAwait(false))
             {
@@ -152,10 +152,9 @@ namespace Xbc.DbAccess.Entity
         /// <summary>
         /// 构建单条截断的投影 SQL：源查询经排序截取后派生表包裹投影列（仅 ExecuteSingleAsync 窗口分支调用）。
         /// </summary>
-        /// <param name="cancellationToken">取消令牌。</param>
         /// <param name="fetch">截取行数，由调用方算好——Single 系 2 行（多条检测）与查询级 Take 的交集、First 系 1 行；调用前提为排序链非空（窗口态强制排序或纯排序），截断与排序是各方言的语法单元不可拆分。</param>
         /// <returns>投影 SQL。</returns>
-        private async Task<string> BuildSingleProjectionSqlAsync(CancellationToken cancellationToken, int fetch)
+        private async Task<string> BuildSingleProjectionSqlAsync(int fetch)
         {
             var innerSql = EntityQuerySqlHelpers.PrepareWrappableBaseSql(originalSql);
             var windowedSql = await EntityQuerySqlHelpers.BuildWindowSqlAsync(
@@ -169,9 +168,8 @@ namespace Xbc.DbAccess.Entity
         /// <summary>
         /// 构建全量投影 SQL：源查询经窗口处理（手写 ORDER BY 检测同终结方法），再派生表包裹投影列（ToListAsync 与单条无状态分支共用）。
         /// </summary>
-        /// <param name="cancellationToken">取消令牌。</param>
         /// <returns>投影 SQL。</returns>
-        private async Task<string> BuildProjectionSqlAsync(CancellationToken cancellationToken)
+        private async Task<string> BuildProjectionSqlAsync()
         {
             var innerSql = EntityQuerySqlHelpers.PrepareWrappableBaseSql(originalSql);
 

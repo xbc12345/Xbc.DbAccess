@@ -150,12 +150,12 @@ namespace Xbc.DbAccess.Entity
                 // top-N 计划流式中途即停，避免全量排序后逐行流出；Single 系取 2 行用于多条检测
                 var fetchLimit = ensureSingle ? 2 : 1;
                 var fetch = take.HasValue ? Math.Min(take.Value, fetchLimit) : (int?)fetchLimit;
-                (executedSql, executedParameters) = await BuildSingleProjectionSqlAsync(cancellationToken, fetch.Value).ConfigureAwait(false);
+                (executedSql, executedParameters) = await BuildSingleProjectionSqlAsync(fetch.Value).ConfigureAwait(false);
             }
             else
             {
                 // 无排序无窗口时流式直读：无行序需兑现，服务端无物化代价
-                (executedSql, executedParameters) = await BuildProjectionSqlAsync(cancellationToken).ConfigureAwait(false);
+                (executedSql, executedParameters) = await BuildProjectionSqlAsync().ConfigureAwait(false);
             }
 
             return await ExecuteSingleCoreAsync(executedSql, executedParameters, throwIfEmpty, ensureSingle, cancellationToken).ConfigureAwait(false);
@@ -189,7 +189,7 @@ namespace Xbc.DbAccess.Entity
         {
             // 校验并取窗口态
             GroupedLayerBuilder.ValidateWindowState(orderings.Count, skip, take);
-            var (executedSql, executedParameters) = await BuildProjectionSqlAsync(cancellationToken).ConfigureAwait(false);
+            var (executedSql, executedParameters) = await BuildProjectionSqlAsync().ConfigureAwait(false);
 
             using (var reader = await dbAccess.ExecuteReaderAsync(executedSql, executedParameters, cancellationToken).ConfigureAwait(false))
             {
@@ -201,10 +201,9 @@ namespace Xbc.DbAccess.Entity
         /// <summary>
         /// 构建单条截断的分组投影 SQL：分组层经排序截取后派生表裁剪包裹（仅 ExecuteSingleAsync 窗口分支调用）。
         /// </summary>
-        /// <param name="cancellationToken">取消令牌。</param>
         /// <param name="fetch">截取组数，由调用方算好——Single 系 2 组（多条检测）与查询级 Take 的交集、First 系 1 组；调用前提为排序链非空（窗口态强制排序或纯排序），截断与排序是各方言的语法单元不可拆分。</param>
         /// <returns>分组投影 SQL 与执行参数。</returns>
-        private async Task<(string Sql, DbParameter[] Parameters)> BuildSingleProjectionSqlAsync(CancellationToken cancellationToken, int fetch)
+        private async Task<(string Sql, DbParameter[] Parameters)> BuildSingleProjectionSqlAsync(int fetch)
         {
             var layer = BuildGroupedLayer();
             var windowedSql = await EntityQuerySqlHelpers.BuildWindowSqlAsync(
@@ -218,9 +217,8 @@ namespace Xbc.DbAccess.Entity
         /// <summary>
         /// 构建全量分组投影 SQL：分组层经窗口处理（手写 ORDER BY 检测同终结方法），再派生表裁剪包裹（ToListAsync 与单条无状态分支共用）。
         /// </summary>
-        /// <param name="cancellationToken">取消令牌。</param>
         /// <returns>分组投影 SQL 与执行参数。</returns>
-        private async Task<(string Sql, DbParameter[] Parameters)> BuildProjectionSqlAsync(CancellationToken cancellationToken)
+        private async Task<(string Sql, DbParameter[] Parameters)> BuildProjectionSqlAsync()
         {
             var layer = BuildGroupedLayer();
 
