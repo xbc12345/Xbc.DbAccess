@@ -3,7 +3,8 @@ namespace Xbc.DbAccess
     /// <summary>
     /// 数据库连接池选项。
     /// <para>已知限制：连接回池复用时仅重置当前数据库，临时表、SET 选项、CONTEXT_INFO、会话级锁等会话状态会残留给下一个借用者；
-    /// 需要会话级状态时请经 <c>IDbAccess.ProviderFactory.DbProviderFactory.CreateConnection()</c> 创建独立的非池化连接。</para>
+    /// 需要会话级状态时请经 <c>IDbAccess.ProviderFactory.DbProviderFactory.CreateConnection()</c> 创建独立的非池化连接。
+    /// 挂起事务防护仅覆盖经框架事务包装器开启的事务：经 <c>UnderlyingConnection</c> 直接开启的事务不会阻止连接回池复用。</para>
     /// </summary>
     public sealed class DbConnectionPoolOptions
     {
@@ -13,7 +14,7 @@ namespace Xbc.DbAccess
         public bool Enabled { get; set; }
 
         /// <summary>
-        /// 连接池最小连接数。连接池启动时会预创建指定数量的连接，默认值为 5。
+        /// 连接池最小连接数。连接池首次获取连接时懒预热创建指定数量的连接（不阻塞构造），默认值为 5，也是空闲连接清理的下限。
         /// </summary>
         public int MinPoolSize { get; set; } = 5;
 

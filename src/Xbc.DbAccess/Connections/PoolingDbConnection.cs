@@ -17,6 +17,17 @@ namespace Xbc.DbAccess
         private int state = State_Created;// 新创建的连接初始状态为已创建
         private string initialDatabase;// 初始数据库名称，用于激活时重置数据库上下文
         private long lastActiveTicks;// 最后活动时间的本地 tick 值，使用原子操作读写，避免 32 位平台上 DateTime 赋值撕裂
+        private readonly long createdAtTicks = Environment.TickCount64;// 创建时刻的单调时钟毫秒值，用于最大寿命判定（不受系统时间调整影响）
+
+        /// <summary>
+        /// 连接创建时间。
+        /// </summary>
+        public DateTime CreatedAt { get; } = DateTime.Now;
+
+        /// <summary>
+        /// 连接存活时长（单调时钟，不受系统时间调整影响），用于连接池的最大寿命判定。
+        /// </summary>
+        internal TimeSpan Age => TimeSpan.FromMilliseconds(Environment.TickCount64 - createdAtTicks);
 
         /// <summary>
         /// 最后活动时间。
