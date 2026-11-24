@@ -74,6 +74,51 @@ namespace Xbc.DbAccess.IntegrationTests
         }
 
         [SkippableFact]
+        public async Task SkipTake_UnknownServerVersion_CompatRowNumberSql_ExecutesOnNewServer()
+        {
+            SkipIfDialectUnavailable();
+            // 兼容路径仅存在于版本分支部方言：SQL Server（ROW_NUMBER 包裹）、Oracle（ROWNUM 三层嵌套）；
+            // 其余方言恒为 LIMIT/OFFSET，无版本分支可测
+            Skip.IfNot(Dialect is RealDbDialect.SqlServer or RealDbDialect.Oracle,
+                $"{Dialect} 的窗口 SQL 与服务器版本无关，无兼容路径。");
+
+            // 版本探测固定返回 MajorVersion == 0：与真库的实际新版本无关，构建器必走兼容形态包裹 SQL，
+            // 在新版本真库上验证该兼容 SQL 的可执行性与结果正确性（版本探测失效时的回退路径）
+            using var legacyDbAccess = CreateLegacyVersionDbAccess();
+            var entitySet = new EntitySet<WindowOrder>(legacyDbAccess);
+            await SeedAsync(entitySet);
+
+            var rows = await entitySet.AsQuery().OrderBy(o => o.Amount).Skip(2).Take(3).ToListAsync();
+
+            Assert.Equal(3, rows.Count);
+            Assert.Equal(new[] { "Carol", "Dave", "Eve" }, rows.Select(o => o.CustomerName));
+        }
+
+        [SkippableFact]
+        public async Task RawRowNumberOverPartition_ReturnsEachRegionTopAmountRow()
+        {
+            SkipIfDialectUnavailable();
+            var entitySet = new EntitySet<WindowOrder>(DbAccess);
+            await SeedAsync(entitySet);
+
+            // 手写 ROW_NUMBER() OVER (PARTITION BY ...) 标准窗口 SQL（五方言通用；MySQL 8+/SQLite 3.25+ 均支持）：
+            // 各分区按 Amount 取 Top1 —— East → Eve(400)、West → Frank(500)
+            var sql = $@"SELECT {Qi("CustomerName")} FROM (
+    SELECT {Qi("CustomerName")}, ROW_NUMBER() OVER (PARTITION BY {Qi("Region")} ORDER BY {Qi("Amount")} DESC) AS {Qi("rn")}
+    FROM {Qi("it_win_order")}
+) ranked
+WHERE {Qi("rn")} = 1
+ORDER BY {Qi("CustomerName")}";
+
+            await using var reader = await DbAccess.ExecuteReaderAsync(sql);
+            var names = new List<string>();
+            while (await reader.ReadAsync())
+                names.Add(reader.GetString(0));
+
+            Assert.Equal(new[] { "Eve", "Frank" }, names);
+        }
+
+        [SkippableFact]
         public async Task First_AfterSkip_ReturnsNthRowByOrder()
         {
             SkipIfDialectUnavailable();

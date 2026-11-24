@@ -18,6 +18,7 @@ namespace Xbc.DbAccess.IntegrationTests.Infrastructure
     {
         private bool _disposed;
         private readonly string? _sqliteDbFilePath;
+        private readonly string _connectionString;
 
         /// <summary>当前用例的目标方言。</summary>
         protected RealDbDialect Dialect { get; }
@@ -50,6 +51,7 @@ namespace Xbc.DbAccess.IntegrationTests.Infrastructure
                     _ => throw new ArgumentOutOfRangeException(nameof(dialect), $"未知的真库方言 '{dialect}'。")
                 };
             }
+            _connectionString = connectionString;
             var connectionOptions = new DbConnectionOptions
             {
                 ConnectionString = connectionString,
@@ -66,6 +68,28 @@ namespace Xbc.DbAccess.IntegrationTests.Infrastructure
                 _ => throw new ArgumentOutOfRangeException(nameof(dialect), $"未知的真库方言 '{dialect}'。")
             };
             DbAccess = Factory.Create();
+        }
+
+        /// <summary>
+        /// 创建"服务器版本未知"的数据库访问实例：版本探测固定返回 MajorVersion == 0 的 <see cref="DbServerInfo"/>，
+        /// 强制方言构建器走低版本兼容 SQL 路径（SQL Server → ROW_NUMBER 包裹、Oracle → ROWNUM 三层嵌套）。
+        /// <para>仅版本分支部方言（SQL Server、Oracle）支持；其余方言的窗口 SQL 与服务器版本无关（恒为 LIMIT/OFFSET）。
+        /// 连接串与主 <see cref="Factory"/> 相同，返回实例由调用方负责 Dispose。</para>
+        /// </summary>
+        protected IDbAccess CreateLegacyVersionDbAccess()
+        {
+            var legacyOptions = new DbConnectionOptions
+            {
+                ConnectionString = _connectionString,
+                PoolOptions = { Enabled = false }
+            };
+            IDbAccessFactory legacyFactory = Dialect switch
+            {
+                RealDbDialect.SqlServer => new LegacyVersionSqlAccessFactory(legacyOptions),
+                RealDbDialect.Oracle => new LegacyVersionOracleAccessFactory(legacyOptions),
+                _ => throw new NotSupportedException($"方言 {Dialect} 的窗口 SQL 与服务器版本无关，不存在兼容路径。")
+            };
+            return legacyFactory.Create();
         }
 
         /// <summary>
