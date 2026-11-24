@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using Xbc.DbAccess;
-using Xbc.DbAccess.Common;
 using Xunit;
 
 namespace Xbc.DbAccess.UnitTests.Sql

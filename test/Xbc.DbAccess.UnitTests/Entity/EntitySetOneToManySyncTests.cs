@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using Xbc.DbAccess.Entity;
 using Xunit;
 using XbcDbEntity = Xbc.DbAccess.Entity;
@@ -153,7 +151,8 @@ namespace Xbc.DbAccess.UnitTests.Entity
 
             var user = new O2OSyncUser
             {
-                Id = 5, Name = "u5",
+                Id = 5,
+                Name = "u5",
                 Orders = new List<O2OSyncOrder> { new O2OSyncOrder() }
             };
 
@@ -171,7 +170,8 @@ namespace Xbc.DbAccess.UnitTests.Entity
             // 模拟挪出集合场景：Include 加载后用户改了子外键指向其他父实体，但未从本集合移除
             var user = new O2OSyncUser
             {
-                Id = 5, Name = "u5",
+                Id = 5,
+                Name = "u5",
                 Orders = new List<O2OSyncOrder> { new O2OSyncOrder { Id = 1, UserId = 888 } }
             };
 

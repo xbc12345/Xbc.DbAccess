@@ -1,10 +1,5 @@
-using System;
-using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
-using System.Linq;
-using System.Threading.Tasks;
-using Xbc.DbAccess.Diagnostics;
 using Xbc.DbAccess.Entity;
 using Xbc.DbAccess.Oracle;
 using Xunit;

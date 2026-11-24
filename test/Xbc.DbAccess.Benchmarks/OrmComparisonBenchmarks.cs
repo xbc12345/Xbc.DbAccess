@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
 using Dapper;
 using Microsoft.Data.Sqlite;
@@ -241,7 +238,7 @@ namespace Xbc.DbAccess.Benchmarks
                     wideParameters["@Weight"].Value = i * 1.25;
                     wideParameters["@IsActive"].Value = i % 2 == 0;
                     wideParameters["@CreatedAt"].Value = BaseTime.AddMinutes(i);
-                    wideParameters["@UpdatedAt"].Value = i % 3 == 0 ? (object)DBNull.Value : BaseTime.AddHours(i);
+                    wideParameters["@UpdatedAt"].Value = i % 3 == 0 ? DBNull.Value : BaseTime.AddHours(i);
                     wideParameters["@RowGuid"].Value = CreateSeedGuid(i).ToString();
                     wideParameters["@Payload"].Value = CreateSeedPayload(i);
                     wideCommand.ExecuteNonQuery();
@@ -298,7 +295,7 @@ namespace Xbc.DbAccess.Benchmarks
                     wideParameters["@Weight"].Value = i * 1.25;
                     wideParameters["@IsActive"].Value = i % 2 == 0;
                     wideParameters["@CreatedAt"].Value = BaseTime.AddMinutes(i);
-                    wideParameters["@UpdatedAt"].Value = i % 3 == 0 ? (object)DBNull.Value : BaseTime.AddHours(i);
+                    wideParameters["@UpdatedAt"].Value = i % 3 == 0 ? DBNull.Value : BaseTime.AddHours(i);
                     wideParameters["@RowGuid"].Value = CreateSeedGuid(i).ToString();
                     wideParameters["@Payload"].Value = CreateSeedPayload(i);
                     wideCommand.ExecuteNonQuery();
@@ -351,7 +348,7 @@ namespace Xbc.DbAccess.Benchmarks
             parameters["@Weight"].Value = i * 1.25;
             parameters["@IsActive"].Value = i % 2 == 0;
             parameters["@CreatedAt"].Value = BaseTime.AddMinutes(i);
-            parameters["@UpdatedAt"].Value = i % 3 == 0 ? (object)DBNull.Value : BaseTime.AddHours(i);
+            parameters["@UpdatedAt"].Value = i % 3 == 0 ? DBNull.Value : BaseTime.AddHours(i);
             parameters["@RowGuid"].Value = CreateSeedGuid(i).ToString();
             parameters["@Payload"].Value = CreateSeedPayload(i);
             parameters["@Tag"].Value = "T" + i.ToString("00");
@@ -367,7 +364,7 @@ namespace Xbc.DbAccess.Benchmarks
             parameters["@Height"].Value = i * 3.3;
             parameters["@IsFeatured"].Value = i % 5 == 0;
             parameters["@ManufacturedAt"].Value = BaseTime.AddDays(i % 28);
-            parameters["@ExpiredAt"].Value = i % 4 == 0 ? (object)DBNull.Value : BaseTime.AddDays(i + 30);
+            parameters["@ExpiredAt"].Value = i % 4 == 0 ? DBNull.Value : BaseTime.AddDays(i + 30);
             parameters["@BatchNo"].Value = "B2026" + i.ToString("0000");
             parameters["@WarehouseId"].Value = i % 5;
             parameters["@ExternalId"].Value = CreateSeedGuid(10000 + i).ToString();

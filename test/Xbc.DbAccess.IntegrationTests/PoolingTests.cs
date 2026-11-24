@@ -1,7 +1,5 @@
 ﻿using System.Collections.Concurrent;
 using System.Data.Common;
-using Xbc.DbAccess;
-using Xbc.DbAccess.Common;
 using Xbc.DbAccess.Sqlite;
 using Xunit;
 

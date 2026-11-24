@@ -1,7 +1,5 @@
-using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Threading.Tasks;
 using Xbc.DbAccess.Diagnostics;
 using Xbc.DbAccess.UnitTests.Infrastructure;
 using Xunit;

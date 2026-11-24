@@ -1,5 +1,4 @@
-﻿using Xbc.DbAccess;
-using Xbc.DbAccess.Entity;
+﻿using Xbc.DbAccess.Entity;
 using Xbc.DbAccess.IntegrationTests.Infrastructure;
 using Xunit;
 using static Xbc.DbAccess.IntegrationTests.Infrastructure.RealDbDialect;

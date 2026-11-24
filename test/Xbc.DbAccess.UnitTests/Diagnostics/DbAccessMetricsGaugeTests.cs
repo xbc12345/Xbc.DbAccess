@@ -1,8 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using Moq;
-using Xbc.DbAccess;
 using Xbc.DbAccess.Common;
 using Xbc.DbAccess.Diagnostics;
 using Xunit;

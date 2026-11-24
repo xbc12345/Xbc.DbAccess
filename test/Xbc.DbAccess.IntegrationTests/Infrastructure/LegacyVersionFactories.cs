@@ -1,4 +1,3 @@
-using Xbc.DbAccess.Common;
 using Xbc.DbAccess.Oracle;
 using Xbc.DbAccess.SqlServer;
 

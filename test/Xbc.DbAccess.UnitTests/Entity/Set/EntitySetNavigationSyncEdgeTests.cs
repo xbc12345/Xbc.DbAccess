@@ -1,8 +1,5 @@
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using Moq;
 using Xbc.DbAccess.Entity;
-using Xbc.DbAccess.UnitTests.Entity;
 using Xunit;
 using XbcDbEntity = Xbc.DbAccess.Entity;
 
@@ -182,7 +179,9 @@ namespace Xbc.DbAccess.UnitTests.Entity.Set
             // 1:N 的 ThisKey 指向非主键列：该列值为默认值（0）时跳过同步，子外键不回填
             var parent1 = new NonPkThisKeyParent
             {
-                Id = 1, Name = "g1", GroupId = 0,
+                Id = 1,
+                Name = "g1",
+                GroupId = 0,
                 Children = new List<GroupChild> { new GroupChild(), new GroupChild() },
             };
             await set.InsertAsync(parent1);
@@ -191,7 +190,9 @@ namespace Xbc.DbAccess.UnitTests.Entity.Set
             // ThisKey 列有有效值时照常回填（对照：证明跳过源于默认值分支）
             var parent2 = new NonPkThisKeyParent
             {
-                Id = 2, Name = "g2", GroupId = 5,
+                Id = 2,
+                Name = "g2",
+                GroupId = 5,
                 Children = new List<GroupChild> { new GroupChild() },
             };
             await set.InsertAsync(parent2);

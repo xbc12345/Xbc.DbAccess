@@ -1,12 +1,7 @@
-using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
-using System.Data;
-using System.Linq;
 using Microsoft.Extensions.Logging;
-using Xunit;
+using System.Data;
 using Xbc.DbAccess.Common;
+using Xunit;
 using XbcDbEntity = Xbc.DbAccess.Entity;
 
 namespace Xbc.DbAccess.UnitTests.Entity

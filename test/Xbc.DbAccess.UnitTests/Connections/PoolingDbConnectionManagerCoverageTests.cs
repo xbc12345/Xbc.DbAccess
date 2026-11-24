@@ -1,6 +1,6 @@
+using Moq;
 using System.Data.Common;
 using System.Reflection;
-using Moq;
 using Xbc.DbAccess.Diagnostics;
 using Xunit;
 

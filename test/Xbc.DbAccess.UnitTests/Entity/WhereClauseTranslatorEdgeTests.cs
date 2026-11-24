@@ -1,10 +1,6 @@
-using System;
-using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
-using System.Linq;
 using System.Linq.Expressions;
-using System.Reflection;
 using Xbc.DbAccess.Common;
 using Xbc.DbAccess.Entity;
 using Xunit;

@@ -1,7 +1,5 @@
 using System.Data;
 using System.Data.Common;
-using System.Threading.Tasks;
-using Xbc.DbAccess;
 using Xunit;
 
 namespace Xbc.DbAccess.UnitTests.Common

@@ -1,6 +1,5 @@
 using System.Data;
 using System.Data.Common;
-using System.Collections.Generic;
 using Xbc.DbAccess.Common;
 using Xunit;
 

@@ -1,4 +1,3 @@
-using System.Data;
 using Xbc.DbAccess.UnitTests.Infrastructure;
 using Xunit;
 

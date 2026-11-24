@@ -1,7 +1,7 @@
+using Moq;
 using System.Data;
 using System.Data.Common;
 using System.Diagnostics;
-using Moq;
 using Xunit;
 
 namespace Xbc.DbAccess.UnitTests.Connections

@@ -1,5 +1,3 @@
-using System;
-
 namespace Xbc.DbAccess.Benchmarks
 {
     /// <summary>

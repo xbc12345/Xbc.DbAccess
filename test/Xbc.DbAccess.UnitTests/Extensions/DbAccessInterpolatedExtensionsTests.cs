@@ -1,11 +1,7 @@
-using System;
-using System.Collections.Generic;
+using Moq;
 using System.Data;
 using System.Data.Common;
 using System.Runtime.CompilerServices;
-using System.Threading;
-using System.Threading.Tasks;
-using Moq;
 using Xunit;
 
 namespace Xbc.DbAccess.UnitTests.Extensions
@@ -231,7 +227,7 @@ namespace Xbc.DbAccess.UnitTests.Extensions
             await DbAccessInterpolatedExtensions.ExecuteNonQueryInterpolatedAsync(
                 dbAccess.Object, $"UPDATE T SET Remark = {(string)null} WHERE Id = {1}");
 
-            Assert.Null((object)capturedParameters[0].Value);
+            Assert.Null(capturedParameters[0].Value);
         }
 
         [Fact]

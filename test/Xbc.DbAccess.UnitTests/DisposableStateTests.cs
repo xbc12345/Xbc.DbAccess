@@ -1,5 +1,3 @@
-using System;
-using System.Threading.Tasks;
 using Xunit;
 
 namespace Xbc.DbAccess.UnitTests.Common

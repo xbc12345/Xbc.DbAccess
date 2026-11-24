@@ -1,7 +1,5 @@
-using System;
-using System.Data.Common;
-using System.Threading;
 using Moq;
+using System.Data.Common;
 using Xunit;
 using XbcDbEntity = Xbc.DbAccess.Entity;
 

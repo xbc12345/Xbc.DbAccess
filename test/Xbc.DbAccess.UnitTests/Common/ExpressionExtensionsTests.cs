@@ -1,5 +1,5 @@
 using System.Linq.Expressions;
-using Xbc.DbAccess.Common;
+using Xbc.DbAccess.Entity;
 using Xunit;
 
 namespace Xbc.DbAccess.UnitTests.Common

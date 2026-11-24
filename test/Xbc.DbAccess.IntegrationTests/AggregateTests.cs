@@ -22,7 +22,7 @@ namespace Xbc.DbAccess.IntegrationTests
             {
                 Name = $"Metric{i}",
                 Value = i * 10.5m,
-                Hits = i % 2 == 0 ? i : (int?)null,
+                Hits = i % 2 == 0 ? i : null,
                 RecordedAt = new DateTime(2026, 5, 1, 0, i, 0)
             }).ToList();
             await entitySet.InsertRangeAsync(records);

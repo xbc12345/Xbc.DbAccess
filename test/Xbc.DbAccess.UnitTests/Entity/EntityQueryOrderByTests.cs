@@ -1,11 +1,7 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Xbc.DbAccess.Entity;
 using Xbc.DbAccess.MySql;
-using Xbc.DbAccess.SqlServer;
 using Xbc.DbAccess.Sqlite;
+using Xbc.DbAccess.SqlServer;
 using Xunit;
 using XbcDbEntity = Xbc.DbAccess.Entity;
 

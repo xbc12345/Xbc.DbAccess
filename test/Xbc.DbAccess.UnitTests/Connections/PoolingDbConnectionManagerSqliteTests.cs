@@ -1,7 +1,6 @@
-using System.Data;
-using System.Data.Common;
-using System.Data.SQLite;
 using Moq;
+using System.Data;
+using System.Data.SQLite;
 using Xbc.DbAccess.Diagnostics;
 using Xunit;
 

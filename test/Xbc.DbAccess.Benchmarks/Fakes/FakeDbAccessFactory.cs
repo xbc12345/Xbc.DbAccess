@@ -1,5 +1,3 @@
-using Xbc.DbAccess.Diagnostics;
-
 namespace Xbc.DbAccess.Benchmarks.Fakes
 {
     /// <summary>

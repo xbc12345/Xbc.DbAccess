@@ -1,9 +1,8 @@
-using Xbc.DbAccess.Common;
 using Xbc.DbAccess.MySql;
 using Xbc.DbAccess.Npgsql;
 using Xbc.DbAccess.Oracle;
-using Xbc.DbAccess.SqlServer;
 using Xbc.DbAccess.Sqlite;
+using Xbc.DbAccess.SqlServer;
 using Xunit;
 
 namespace Xbc.DbAccess.IntegrationTests.Infrastructure

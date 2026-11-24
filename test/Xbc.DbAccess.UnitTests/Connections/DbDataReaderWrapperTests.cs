@@ -1,10 +1,9 @@
 using System.Collections;
-using System.Collections.ObjectModel;
 using System.Data;
 using System.Data.Common;
 using System.Data.SQLite;
-using Xunit;
 using Xbc.DbAccess.UnitTests.Transactions;
+using Xunit;
 
 namespace Xbc.DbAccess.UnitTests.Connections
 {
@@ -315,7 +314,7 @@ namespace Xbc.DbAccess.UnitTests.Connections
             public override object GetProviderSpecificValue(int ordinal) => throw new NotSupportedException();
             public override int GetProviderSpecificValues(object[] values) => 0;
             public override DataTable GetSchemaTable() => null;
-            public override IEnumerator GetEnumerator() => ((IEnumerable)Array.Empty<object>()).GetEnumerator();
+            public override IEnumerator GetEnumerator() => Array.Empty<object>().GetEnumerator();
         }
 
         [Fact]

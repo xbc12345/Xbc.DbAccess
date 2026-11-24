@@ -1,8 +1,5 @@
-using System;
-using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
-using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using Xbc.DbAccess.Common;
@@ -443,7 +440,7 @@ namespace Xbc.DbAccess.UnitTests.Entity
         {
             // 单键的 g.Key 整体参与比较（合法路径），并验证同一翻译实例不可复用（防片段累积）——
             // 通过两次独立 TranslateHaving 均成功、同一片段一致来锁定公共入口每次新建实例的契约
-            var keys = ParseKey((Expression<Func<Row, long>>)(x => x.CustomerId));
+            var keys = ParseKey(x => x.CustomerId);
             Expression<Func<IGrouping<long, Row>, bool>> predicate = g => g.Key >= 5;
 
             var first = TranslateHaving(predicate, keys);

@@ -1,9 +1,5 @@
-using System;
-using System.Collections.Generic;
 using System.Data.Common;
 using System.Linq.Expressions;
-using System.Linq;
-using System.Threading.Tasks;
 using Xbc.DbAccess.Entity;
 using Xunit;
 using XbcDbEntity = Xbc.DbAccess.Entity;

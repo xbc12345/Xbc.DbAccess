@@ -1,4 +1,3 @@
-using Xbc.DbAccess;
 using Xbc.DbAccess.MySql;
 using Xbc.DbAccess.Npgsql;
 using Xbc.DbAccess.Oracle;

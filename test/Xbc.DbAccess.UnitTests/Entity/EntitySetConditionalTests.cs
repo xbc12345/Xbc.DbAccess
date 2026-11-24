@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Xbc.DbAccess.Entity;
 using Xunit;
 using XbcDbEntity = Xbc.DbAccess.Entity;

@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
 using Dapper;
 using Xbc.DbAccess.Benchmarks.Fakes;
@@ -336,7 +333,7 @@ namespace Xbc.DbAccess.Benchmarks
                     i * 0.37,
                     i % 2 == 0,
                     new DateTime(2026, 1, 1, 8, 0, 0).AddHours(i),
-                    i % 3 == 0 ? (object)DBNull.Value : new DateTime(2026, 2, 1, 8, 0, 0).AddHours(i),
+                    i % 3 == 0 ? DBNull.Value : new DateTime(2026, 2, 1, 8, 0, 0).AddHours(i),
                     new Guid(i + 1, 0x1234, 0x5678, 0x9A, 0xBC, 0xDE, 0xF0, 0x11, 0x22, 0x33, 0x44),
                     payloadCache[i % payloadCache.Length]
                 };
@@ -363,7 +360,7 @@ namespace Xbc.DbAccess.Benchmarks
                     i * 0.37,
                     i % 2 == 0,
                     new DateTime(2026, 1, 1, 8, 0, 0).AddHours(i),
-                    i % 3 == 0 ? (object)DBNull.Value : new DateTime(2026, 2, 1, 8, 0, 0).AddHours(i),
+                    i % 3 == 0 ? DBNull.Value : new DateTime(2026, 2, 1, 8, 0, 0).AddHours(i),
                     new Guid(i + 1, 0x1234, 0x5678, 0x9A, 0xBC, 0xDE, 0xF0, 0x11, 0x22, 0x33, 0x44),
                     payloadCache[i % payloadCache.Length],
                     "标签_" + i % 7,
@@ -379,7 +376,7 @@ namespace Xbc.DbAccess.Benchmarks
                     i * 0.33,
                     i % 4 == 0,
                     new DateTime(2026, 3, 1, 8, 0, 0).AddMinutes(i),
-                    i % 7 == 0 ? (object)DBNull.Value : new DateTime(2026, 4, 1, 8, 0, 0).AddMinutes(i),
+                    i % 7 == 0 ? DBNull.Value : new DateTime(2026, 4, 1, 8, 0, 0).AddMinutes(i),
                     "B" + i.ToString("D6"),
                     i % 300,
                     new Guid(i + 2, 0x1111, 0x2222, 0x9A, 0xBC, 0xDE, 0xF0, 0x11, 0x22, 0x33, 0x55),

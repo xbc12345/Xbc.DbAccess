@@ -1,4 +1,3 @@
-using System;
 using Microsoft.Extensions.DependencyInjection;
 using Xbc.DbAccess.Entity;
 using Xunit;

@@ -1,7 +1,4 @@
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using Xbc.DbAccess.Entity;
-using Xbc.DbAccess.UnitTests.Entity;
 using Xunit;
 using XbcDbEntity = Xbc.DbAccess.Entity;
 

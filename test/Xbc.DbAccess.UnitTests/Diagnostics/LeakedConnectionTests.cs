@@ -1,7 +1,3 @@
-using System;
-using System.Linq;
-using System.Threading;
-using Xbc.DbAccess;
 using Xbc.DbAccess.Diagnostics;
 using Xbc.DbAccess.Sqlite;
 using Xunit;

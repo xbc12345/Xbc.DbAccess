@@ -1,8 +1,5 @@
-using System;
-using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
-using System.Linq;
 using System.Linq.Expressions;
 using Xbc.DbAccess.Common;
 using Xbc.DbAccess.Entity;
@@ -89,6 +86,8 @@ namespace Xbc.DbAccess.UnitTests.Entity
             public string Region { get; set; }
 
             public int Status { get; set; }
+
+            public int? Score { get; set; }
         }
 
         /// <summary>命名复合键的初始化器形态载体（无参构造 + 可写属性）。</summary>
@@ -230,7 +229,7 @@ namespace Xbc.DbAccess.UnitTests.Entity
         [Fact]
         public void ParseKey_SingleMember_ProducesOneColumnWithoutMemberName()
         {
-            var keys = ParseKey((Expression<Func<GroupRow, long>>)(x => x.CustomerId));
+            var keys = ParseKey(x => x.CustomerId);
 
             var key = Assert.Single(keys);
             Assert.Equal("CustomerId", key.Column.ColumnName);
@@ -268,7 +267,7 @@ namespace Xbc.DbAccess.UnitTests.Entity
         [Fact]
         public void ParseKey_ConstantKey_Throws()
         {
-            Assert.Throws<ArgumentException>(() => ParseKey((Expression<Func<GroupRow, int>>)(x => 5)));
+            Assert.Throws<ArgumentException>(() => ParseKey(x => 5));
         }
 
         [Fact]
@@ -424,7 +423,7 @@ namespace Xbc.DbAccess.UnitTests.Entity
         [Fact]
         public void ParseSelect_SingleMemberKeyWhole_ProducesKeyColumn()
         {
-            var keys = ParseKey((Expression<Func<GroupRow, long>>)(x => x.CustomerId));
+            var keys = ParseKey(x => x.CustomerId);
             Expression<Func<IGrouping<long, GroupRow>, long>> selector = g => g.Key;
 
             var (columns, members, _, _) = ParseSelect(selector, keys);
@@ -480,7 +479,7 @@ namespace Xbc.DbAccess.UnitTests.Entity
         [Fact]
         public void ParseSelect_ConstantItem_Throws()
         {
-            var keys = ParseKey((Expression<Func<GroupRow, long>>)(x => x.CustomerId));
+            var keys = ParseKey(x => x.CustomerId);
             Expression<Func<IGrouping<long, GroupRow>, int>> selector = g => 5;
 
             // 投影项必须可落到键列或聚合（投影是列映射，不是任意计算）
@@ -509,7 +508,7 @@ namespace Xbc.DbAccess.UnitTests.Entity
         [Fact]
         public void ParseOrdering_Aggregate_ProducesAggregateTarget()
         {
-            var keys = ParseKey((Expression<Func<GroupRow, long>>)(x => x.CustomerId));
+            var keys = ParseKey(x => x.CustomerId);
             Expression<Func<IGrouping<long, GroupRow>, decimal>> selector = g => g.Sum(x => x.Amount);
 
             var targets = ParseOrdering(selector, keys);
@@ -523,7 +522,7 @@ namespace Xbc.DbAccess.UnitTests.Entity
         [Fact]
         public void ParseOrdering_ComputedExpression_Throws()
         {
-            var keys = ParseKey((Expression<Func<GroupRow, long>>)(x => x.CustomerId));
+            var keys = ParseKey(x => x.CustomerId);
             Expression<Func<IGrouping<long, GroupRow>, int>> selector = g => 5;
 
             Assert.Throws<NotSupportedException>(() => ParseOrdering(selector, keys));
@@ -536,7 +535,7 @@ namespace Xbc.DbAccess.UnitTests.Entity
         [Fact]
         public void TranslateHaving_AggregateVersusConstant_IsParameterized()
         {
-            var keys = ParseKey((Expression<Func<GroupRow, long>>)(x => x.CustomerId));
+            var keys = ParseKey(x => x.CustomerId);
             Expression<Func<IGrouping<long, GroupRow>, bool>> predicate = g => g.Count() >= 5;
 
             var result = TranslateHaving(predicate, keys);
@@ -553,7 +552,7 @@ namespace Xbc.DbAccess.UnitTests.Entity
         public void TranslateHaving_AggregateVersusClosure_IsParameterizedNeverInlined()
         {
             var minCount = 3;
-            var keys = ParseKey((Expression<Func<GroupRow, long>>)(x => x.CustomerId));
+            var keys = ParseKey(x => x.CustomerId);
             Expression<Func<IGrouping<long, GroupRow>, bool>> predicate = g => g.Sum(x => x.Amount) > minCount;
 
             var result = TranslateHaving(predicate, keys);
@@ -566,7 +565,7 @@ namespace Xbc.DbAccess.UnitTests.Entity
         [Fact]
         public void TranslateHaving_OperandSwap_FlipsOperator()
         {
-            var keys = ParseKey((Expression<Func<GroupRow, long>>)(x => x.CustomerId));
+            var keys = ParseKey(x => x.CustomerId);
             Expression<Func<IGrouping<long, GroupRow>, bool>> predicate = g => 5 <= g.Count();
 
             var result = TranslateHaving(predicate, keys);
@@ -602,7 +601,7 @@ namespace Xbc.DbAccess.UnitTests.Entity
         [Fact]
         public void TranslateHaving_AggregateNullComparison_TranslatesToIsNull()
         {
-            var keys = ParseKey((Expression<Func<GroupRow, long>>)(x => x.CustomerId));
+            var keys = ParseKey(x => x.CustomerId);
             Expression<Func<IGrouping<long, GroupRow>, bool>> isNullPredicate = g => g.Sum(x => x.Balance) == null;
             Expression<Func<IGrouping<long, GroupRow>, bool>> isNotNullPredicate = g => g.Sum(x => x.Balance) != null;
 
@@ -630,7 +629,7 @@ namespace Xbc.DbAccess.UnitTests.Entity
         [Fact]
         public void TranslateHaving_Negation_TranslatesToNot()
         {
-            var keys = ParseKey((Expression<Func<GroupRow, long>>)(x => x.CustomerId));
+            var keys = ParseKey(x => x.CustomerId);
             Expression<Func<IGrouping<long, GroupRow>, bool>> predicate = g => !(g.Count() > 1);
 
             var result = TranslateHaving(predicate, keys);
@@ -641,7 +640,7 @@ namespace Xbc.DbAccess.UnitTests.Entity
         [Fact]
         public void TranslateHaving_AggregateToAggregateComparison_Throws()
         {
-            var keys = ParseKey((Expression<Func<GroupRow, long>>)(x => x.CustomerId));
+            var keys = ParseKey(x => x.CustomerId);
             Expression<Func<IGrouping<long, GroupRow>, bool>> predicate = g => g.Count() == g.Sum(x => x.Amount);
 
             Assert.Throws<NotSupportedException>(() => TranslateHaving(predicate, keys));
@@ -650,7 +649,7 @@ namespace Xbc.DbAccess.UnitTests.Entity
         [Fact]
         public void TranslateHaving_ArithmeticOnAggregate_Throws()
         {
-            var keys = ParseKey((Expression<Func<GroupRow, long>>)(x => x.CustomerId));
+            var keys = ParseKey(x => x.CustomerId);
             Expression<Func<IGrouping<long, GroupRow>, bool>> predicate = g => g.Count() + 1 > 5;
 
             // 聚合上的算术运算（g.Count() + 1 > 5）不支持：聚合只能与常量/闭包值直接比较
@@ -660,7 +659,7 @@ namespace Xbc.DbAccess.UnitTests.Entity
         [Fact]
         public void TranslateHaving_ConstantPredicate_Throws()
         {
-            var keys = ParseKey((Expression<Func<GroupRow, long>>)(x => x.CustomerId));
+            var keys = ParseKey(x => x.CustomerId);
             Expression<Func<IGrouping<long, GroupRow>, bool>> predicate = g => true;
 
             Assert.Throws<NotSupportedException>(() => TranslateHaving(predicate, keys));
@@ -682,10 +681,28 @@ namespace Xbc.DbAccess.UnitTests.Entity
         }
 
         [Fact]
-        public void TranslateHaving_BareBoolKeyPredicate_Throws()
+        public void TranslateHaving_BareBoolKeyPredicate_ParameterizedComparison()
         {
-            var keys = ParseKey((Expression<Func<GroupRow, bool>>)(x => x.IsActive));
+            var keys = ParseKey(x => x.IsActive);
             Expression<Func<IGrouping<bool, GroupRow>, bool>> predicate = g => g.Key;
+
+            // 布尔键列裸谓词与 WhereClauseTranslator 同款：[Col] = @p 参数化比较（部分方言布尔列不能直接作谓词）
+            var result = TranslateHaving(predicate, keys);
+
+            Assert.Equal("IsActive = @IsActive", result.Fragment);
+            Assert.Equal(true, Assert.Single(result.Parameters).Value);
+        }
+
+        [Fact]
+        public void TranslateHaving_NonBoolBareKeyPredicate_Throws()
+        {
+            // 谓词位置解析到非布尔键列：裸列名不是合法谓词，与 WhereClauseTranslator 同款守卫
+            //（单成员键的 g.Key 经转换包裹编译为 bool 谓词，剥离转换后落到裸键列，守卫在此拦截）
+            var keys = ParseKey(x => x.CustomerId);
+            var gParameter = Expression.Parameter(typeof(IGrouping<long, GroupRow>), "g");
+            var keyAccess = Expression.Property(gParameter, "Key");
+            var predicate = Expression.Lambda<Func<IGrouping<long, GroupRow>, bool>>(
+                Expression.Convert(Expression.Convert(keyAccess, typeof(object)), typeof(bool)), gParameter);
 
             Assert.Throws<NotSupportedException>(() => TranslateHaving(predicate, keys));
         }
@@ -694,7 +711,7 @@ namespace Xbc.DbAccess.UnitTests.Entity
         public void TranslateHaving_AggregateVersusKeyColumn_DirectSplice()
         {
             // 聚合与键列的比较合法（分组列在组级作用域可见）：直拼无参数，与键列对键列同路
-            var keys = ParseKey((Expression<Func<GroupRow, long>>)(x => x.CustomerId));
+            var keys = ParseKey(x => x.CustomerId);
             Expression<Func<IGrouping<long, GroupRow>, bool>> predicate = g => g.Count() >= g.Key;
 
             var result = TranslateHaving(predicate, keys);
@@ -707,7 +724,7 @@ namespace Xbc.DbAccess.UnitTests.Entity
         public void TranslateHaving_KeyColumnVersusAggregate_DirectSplice()
         {
             // 反向操作数序同合法：两侧均为分组操作数时不做交换（无参数化需求），按书写序直拼
-            var keys = ParseKey((Expression<Func<GroupRow, long>>)(x => x.CustomerId));
+            var keys = ParseKey(x => x.CustomerId);
             Expression<Func<IGrouping<long, GroupRow>, bool>> predicate = g => g.Key < g.Sum(x => x.Qty);
 
             var result = TranslateHaving(predicate, keys);
@@ -719,7 +736,7 @@ namespace Xbc.DbAccess.UnitTests.Entity
         [Fact]
         public void TranslateHaving_OrElseComposition_ParenthesizesOperands()
         {
-            var keys = ParseKey((Expression<Func<GroupRow, int>>)(x => x.Status));
+            var keys = ParseKey(x => x.Status);
             Expression<Func<IGrouping<int, GroupRow>, bool>> predicate = g => g.Count() >= 2 || g.Key == 9;
 
             var result = TranslateHaving(predicate, keys);
@@ -732,13 +749,65 @@ namespace Xbc.DbAccess.UnitTests.Entity
         public void TranslateHaving_NullableKeyDotValue_UnwrapsToColumn()
         {
             // 可空单键的 g.Key.Value 解包落到键列（TryResolveKeyMember 的 .Value 解包在 HAVING 路径的形态）
-            var keys = ParseKey((Expression<Func<GroupRow, decimal?>>)(x => x.Balance));
+            var keys = ParseKey(x => x.Balance);
             Expression<Func<IGrouping<decimal?, GroupRow>, bool>> predicate = g => g.Key!.Value >= 5m;
 
             var result = TranslateHaving(predicate, keys);
 
             Assert.Equal("Balance >= @Balance", result.Fragment);
             Assert.Equal(5m, Assert.Single(result.Parameters).Value);
+        }
+
+        [Fact]
+        public void TranslateHaving_NullableKeyHasValuePredicate_TranslatesToIsNotNull()
+        {
+            // 可空键 HasValue 直接作谓词与 WhereClauseTranslator 对齐：g.Key.HasValue → (Score IS NOT NULL)
+            var keys = ParseKey(x => x.Score);
+            Expression<Func<IGrouping<int?, GroupRow>, bool>> predicate = g => g.Key.HasValue;
+
+            var result = TranslateHaving(predicate, keys);
+
+            Assert.Equal("(Score IS NOT NULL)", result.Fragment);
+            Assert.Empty(result.Parameters);
+        }
+
+        [Fact]
+        public void TranslateHaving_CompositeKeyMemberHasValuePredicate_TranslatesToIsNotNull()
+        {
+            // 复合键可空成员的 HasValue 裸谓词（g.Key.Score.HasValue）：键成员寻址与 HasValue 化简组合
+            var keys = ParseKey(x => new { x.CustomerId, x.Score });
+            Expression<Func<IGrouping<CompositeKeyRow, GroupRow>, bool>> predicate = g => g.Key.Score.HasValue;
+
+            var result = TranslateHaving(predicate, keys);
+
+            Assert.Equal("(Score IS NOT NULL)", result.Fragment);
+            Assert.Empty(result.Parameters);
+        }
+
+        [Fact]
+        public void TranslateHaving_NegatedHasValuePredicate_TranslatesToIsNull()
+        {
+            // !g.Key.HasValue → (Score IS NULL)，避免 NOT (col IS NOT NULL) 的双重否定
+            var keys = ParseKey(x => x.Score);
+            Expression<Func<IGrouping<int?, GroupRow>, bool>> predicate = g => !g.Key.HasValue;
+
+            var result = TranslateHaving(predicate, keys);
+
+            Assert.Equal("(Score IS NULL)", result.Fragment);
+            Assert.Empty(result.Parameters);
+        }
+
+        [Fact]
+        public void TranslateHaving_HasValueBooleanComparison_SimplifiesToIsNullCheck()
+        {
+            // HasValue 与布尔值的比较化简为 IS [NOT] NULL（WhereClauseTranslator 同款语义）
+            var keys = ParseKey(x => x.Score);
+            Expression<Func<IGrouping<int?, GroupRow>, bool>> predicate = g => g.Key.HasValue == true;
+
+            var result = TranslateHaving(predicate, keys);
+
+            Assert.Equal("(Score IS NOT NULL)", result.Fragment);
+            Assert.Empty(result.Parameters);
         }
 
         #endregion

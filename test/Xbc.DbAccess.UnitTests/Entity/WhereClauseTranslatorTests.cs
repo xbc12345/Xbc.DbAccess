@@ -1,9 +1,6 @@
-using System;
-using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
 using System.Globalization;
-using System.Linq;
 using System.Linq.Expressions;
 using Xbc.DbAccess.Common;
 using Xbc.DbAccess.Entity;
@@ -491,7 +488,7 @@ namespace Xbc.DbAccess.UnitTests.Entity
         [Fact]
         public void Translate_ClosureStringTransformMethod_TranslatesAsValue()
         {
-            // 闭包变量上的字符串变换方法是值侧可求值表达式（值侧应用相同变换后参数化），不应被字符串变换分支误拒
+            // 闭包变量上的字符串变换方法是值侧可求值表达式（原样求值参数化），不应被字符串变换分支误拒
             var localName = " Alice ";
 
             var result = Translate(r => r.Name == localName.Trim());
@@ -591,43 +588,58 @@ namespace Xbc.DbAccess.UnitTests.Entity
         #region 字符串变换
 
         [Fact]
-        public void Translate_ToLowerEqual_TranslatesToLowerFunctionWithValueTransformed()
+        public void Translate_ToLowerEqual_TranslatesToLowerFunctionWithValueVerbatim()
         {
             var result = Translate(r => r.Name.ToLower() == "Alice");
 
-            // 值侧应用与列侧相同的变换：用户意图是忽略大小写匹配，仅变换列侧在区分大小写排序规则下恒不命中
+            // 值侧原样参数化（忠实直参立场）：用户的值应被尊重，右侧大小写形态由用户自行保证
             Assert.Equal("LOWER(Name) = @Name", result.WhereClause);
             var parameter = Assert.Single(result.Parameters);
             Assert.Equal("@Name", parameter.ParameterName);
-            Assert.Equal("alice", parameter.Value);
+            Assert.Equal("Alice", parameter.Value);
         }
 
         [Fact]
-        public void Translate_ToUpperNotEqual_TranslatesToUpperFunctionWithValueTransformed()
+        public void Translate_ToUpperNotEqual_TranslatesToUpperFunctionWithValueVerbatim()
         {
             var result = Translate(r => r.Name.ToUpper() != "Bob");
 
             Assert.Equal("UPPER(Name) <> @Name", result.WhereClause);
-            Assert.Equal("BOB", Assert.Single(result.Parameters).Value);
+            Assert.Equal("Bob", Assert.Single(result.Parameters).Value);
         }
 
         [Fact]
-        public void Translate_ToLowerWithClosureVariable_TransformsEvaluatedValue()
+        public void Translate_ToLowerWithClosureVariable_UsesEvaluatedValueVerbatim()
         {
             var expected = "Alice";
 
             var result = Translate(r => r.Name.ToLower() == expected);
 
             Assert.Equal("LOWER(Name) = @Name", result.WhereClause);
-            Assert.Equal("alice", Assert.Single(result.Parameters).Value);
+            Assert.Equal("Alice", Assert.Single(result.Parameters).Value);
         }
 
         [Fact]
-        public void Translate_ToLowerWithNullValue_Throws()
+        public void Translate_ToLowerWithNullValue_TranslatesToIsNull()
+        {
+            // x.Name.ToLower() == null 是编译期合法写法，意图即列值为 NULL 的行（变换结果亦为 NULL），与共享流程同款收尾
+            string expected = null;
+
+            var result = Translate(r => r.Name.ToLower() == expected);
+
+            Assert.Equal("LOWER(Name) IS NULL", result.WhereClause);
+            Assert.Empty(result.Parameters);
+        }
+
+        [Fact]
+        public void Translate_ToLowerWithNullValueNotEqual_TranslatesToIsNotNull()
         {
             string expected = null;
 
-            Assert.Throws<InvalidOperationException>(() => Translate(r => r.Name.ToLower() == expected));
+            var result = Translate(r => r.Name.ToLower() != expected);
+
+            Assert.Equal("LOWER(Name) IS NOT NULL", result.WhereClause);
+            Assert.Empty(result.Parameters);
         }
 
         [Fact]
@@ -651,7 +663,7 @@ namespace Xbc.DbAccess.UnitTests.Entity
         }
 
         [Fact]
-        public void Translate_TrimEqual_TranslatesToNestedTrimWithValueTransformed()
+        public void Translate_TrimEqual_TranslatesToNestedTrimWithValueVerbatim()
         {
             var result = Translate(r => r.Name.Trim() == "Alice");
 
@@ -663,15 +675,15 @@ namespace Xbc.DbAccess.UnitTests.Entity
         }
 
         [Fact]
-        public void Translate_TrimWithSurroundingSpaces_TransformsEvaluatedValue()
+        public void Translate_TrimWithSurroundingSpaces_UsesEvaluatedValueVerbatim()
         {
             var expected = "  Alice  ";
 
             var result = Translate(r => r.Name.Trim() == expected);
 
-            // 值侧应用与列侧相同的变换（C# 侧两侧去空白后比较）
+            // 值侧原样参数化（忠实直参立场）：首尾空格不做变换，右侧形态由用户自行保证
             Assert.Equal("LTRIM(RTRIM(Name)) = @Name", result.WhereClause);
-            Assert.Equal("Alice", Assert.Single(result.Parameters).Value);
+            Assert.Equal("  Alice  ", Assert.Single(result.Parameters).Value);
         }
 
         [Fact]
@@ -765,13 +777,15 @@ namespace Xbc.DbAccess.UnitTests.Entity
         }
 
         [Fact]
-        public void Translate_NullableColumnDatePartWithNullValue_Throws()
+        public void Translate_NullableColumnDatePartWithNullValue_TranslatesToIsNull()
         {
-            // C# 提升比较对非 null 的 int 与 null 恒为 false（不存在选中 NULL 日期行的合法写法），
-            // IS NULL 特判会产生与 C# 相反的行集，统一拒绝并引导显式判空
+            // 与直连列/字符串变换立场统一：Year == null 意图即列值为 NULL 的行（变换结果亦为 NULL），IS NULL 直译
             int? expectedYear = null;
 
-            Assert.Throws<InvalidOperationException>(() => Translate(r => r.DeletedAt!.Value.Year == expectedYear));
+            var result = Translate(r => r.DeletedAt!.Value.Year == expectedYear);
+
+            Assert.Equal("YEAR(DeletedAt) IS NULL", result.WhereClause);
+            Assert.Empty(result.Parameters);
         }
 
         [Fact]
@@ -830,10 +844,15 @@ namespace Xbc.DbAccess.UnitTests.Entity
         }
 
         [Fact]
-        public void Translate_DatePartWithNonIntegerValue_Throws()
+        public void Translate_DatePartWithNonIntegerValue_TranslatesWithInferredDbType()
         {
-            // int == double 编译为 double 比较，值侧为 2024.5，非整数显式失败
-            Assert.Throws<InvalidOperationException>(() => Translate(r => r.CreatedAt.Year == 2024.5));
+            // int == double 编译为 double 比较：忠实放行（值 double 对日期列类型不一致 → DbType 置 null 交提供程序按值推断，
+            // SQL 下 YEAR(col) = 2024.5 恒不命中，与 C# 提升比较语义一致）
+            var result = Translate(r => r.CreatedAt.Year == 2024.5);
+
+            Assert.Equal("YEAR(CreatedAt) = @CreatedAt", result.WhereClause);
+            var parameter = Assert.Single(result.Parameters);
+            Assert.Equal(2024.5, parameter.Value);
         }
 
         [Fact]
@@ -1181,7 +1200,7 @@ namespace Xbc.DbAccess.UnitTests.Entity
             // 列侧 as 转换（TypeAs 节点）被 StripConversions 剥离，按直连列与值比较
             var name = "Alice";
 
-            var result = Translate(r => (r.Name as object) == (object)name);
+            var result = Translate(r => r.Name == (object)name);
 
             Assert.Equal("Name = @Name", result.WhereClause);
             Assert.Equal("Alice", Assert.Single(result.Parameters).Value);

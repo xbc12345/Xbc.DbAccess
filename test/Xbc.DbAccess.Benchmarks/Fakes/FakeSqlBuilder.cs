@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-
 namespace Xbc.DbAccess.Benchmarks.Fakes
 {
     /// <summary>

@@ -1,6 +1,6 @@
-using System.Data.Common;
 using BenchmarkDotNet.Attributes;
 using Dapper;
+using System.Data.Common;
 using Xbc.DbAccess.Sqlite;
 
 namespace Xbc.DbAccess.Benchmarks
@@ -35,7 +35,7 @@ namespace Xbc.DbAccess.Benchmarks
             for (int i = 0; i < 50; i++)
             {
                 manualNames[i] = "@P" + i;
-                manualValues[i] = i % 3 == 0 ? (object)i : i % 3 == 1 ? (object)("值" + i) : (object)(i + 0.5);
+                manualValues[i] = i % 3 == 0 ? i : i % 3 == 1 ? "值" + i : i + 0.5;
             }
         }
 

@@ -1,5 +1,4 @@
 using System.Data;
-using System.Data.Common;
 using Xunit;
 
 namespace Xbc.DbAccess.UnitTests.Connections

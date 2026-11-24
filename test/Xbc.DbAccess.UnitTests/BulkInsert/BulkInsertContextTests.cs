@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Xunit;
 
 namespace Xbc.DbAccess.UnitTests.BulkInsert

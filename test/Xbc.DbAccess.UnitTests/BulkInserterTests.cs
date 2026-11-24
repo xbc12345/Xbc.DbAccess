@@ -1,10 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Data;
 using System.Data.SQLite;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Xbc.DbAccess.MySql;
 using Xbc.DbAccess.Npgsql;
 using Xbc.DbAccess.Oracle;

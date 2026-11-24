@@ -1,5 +1,4 @@
 using System.Data;
-using Xbc.DbAccess.Common;
 using Xbc.DbAccess.IntegrationTests.Infrastructure;
 using Xbc.DbAccess.SqlServer;
 using Xunit;

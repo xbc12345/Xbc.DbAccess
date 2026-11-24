@@ -1,4 +1,3 @@
-using System.Data.Common;
 using System.Data;
 using Xbc.DbAccess.Sqlite;
 using Xbc.DbAccess.UnitTests.Infrastructure;

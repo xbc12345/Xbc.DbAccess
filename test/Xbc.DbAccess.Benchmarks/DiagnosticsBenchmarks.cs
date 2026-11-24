@@ -1,7 +1,6 @@
+using BenchmarkDotNet.Attributes;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
-using System.Threading.Tasks;
-using BenchmarkDotNet.Attributes;
 using Xbc.DbAccess.Benchmarks.Fakes;
 using Xbc.DbAccess.Diagnostics;
 

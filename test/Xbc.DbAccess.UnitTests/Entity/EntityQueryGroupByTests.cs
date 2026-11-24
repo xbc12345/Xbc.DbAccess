@@ -1,9 +1,5 @@
-using System;
-using System.Collections.Generic;
 using System.Data.Common;
-using System.Linq;
 using System.Linq.Expressions;
-using System.Threading.Tasks;
 using Xbc.DbAccess.Entity;
 using Xunit;
 using XbcDbEntity = Xbc.DbAccess.Entity;
@@ -12,7 +8,7 @@ namespace Xbc.DbAccess.UnitTests.Entity
 {
     /// <summary>
     /// 查询链 GroupBy/Having 的 SQLite 真库端到端测试：
-    /// 复合键/单成员键分组、聚合投影与别名机制（排序引用未投影聚合）、HAVING 过滤（聚合与键列条件）、
+    /// 复合键/单成员键分组、聚合投影与别名机制（排序引用未投影聚合）、HAVING 过滤（聚合与键列条件、布尔键列裸谓词）、
     /// 窗口与排序组合、枚举键/转换器列、CountAsync 终结、Set 桥接与拒绝清单的链式形态。
     /// </summary>
     public class EntityQueryGroupByTests : EntityTestBase
@@ -32,6 +28,9 @@ namespace Xbc.DbAccess.UnitTests.Entity
             public decimal Amount { get; set; }
 
             public int Qty { get; set; }
+
+            // 布尔列：HAVING 布尔键列裸谓词的键列
+            public bool Approved { get; set; }
 
             // 带自定义转换器的列：聚合源列的读取值应与实体赋值一致（存储值 enc: 前缀被剥掉）
             [XbcDbEntity.Column(ConverterType = typeof(GroupTokenConverter))]
@@ -88,13 +87,14 @@ namespace Xbc.DbAccess.UnitTests.Entity
                     Amount DECIMAL NOT NULL,
                     Qty INTEGER NOT NULL,
                     Token TEXT NULL,
-                    Status TEXT NOT NULL
+                    Status TEXT NOT NULL,
+                    Approved INTEGER NOT NULL
                 );
-                INSERT INTO GroupByUsers (CustomerId, Region, Amount, Qty, Token, Status) VALUES (1, 'East', 100, 2, 'enc:a', 'One');
-                INSERT INTO GroupByUsers (CustomerId, Region, Amount, Qty, Token, Status) VALUES (1, 'East', 50, 1, 'enc:b', 'Nine');
-                INSERT INTO GroupByUsers (CustomerId, Region, Amount, Qty, Token, Status) VALUES (2, 'West', 30, 4, 'enc:c', 'One');
-                INSERT INTO GroupByUsers (CustomerId, Region, Amount, Qty, Token, Status) VALUES (2, NULL, 20, 3, 'enc:d', 'Nine');
-                INSERT INTO GroupByUsers (CustomerId, Region, Amount, Qty, Token, Status) VALUES (3, 'East', 10, 5, 'enc:e', 'One');
+                INSERT INTO GroupByUsers (CustomerId, Region, Amount, Qty, Token, Status, Approved) VALUES (1, 'East', 100, 2, 'enc:a', 'One', 1);
+                INSERT INTO GroupByUsers (CustomerId, Region, Amount, Qty, Token, Status, Approved) VALUES (1, 'East', 50, 1, 'enc:b', 'Nine', 1);
+                INSERT INTO GroupByUsers (CustomerId, Region, Amount, Qty, Token, Status, Approved) VALUES (2, 'West', 30, 4, 'enc:c', 'One', 0);
+                INSERT INTO GroupByUsers (CustomerId, Region, Amount, Qty, Token, Status, Approved) VALUES (2, NULL, 20, 3, 'enc:d', 'Nine', 0);
+                INSERT INTO GroupByUsers (CustomerId, Region, Amount, Qty, Token, Status, Approved) VALUES (3, 'East', 10, 5, 'enc:e', 'One', 1);
             ");
         }
 
@@ -193,8 +193,8 @@ namespace Xbc.DbAccess.UnitTests.Entity
             Assert.Equal(3, rows[0].Cnt);
             Assert.Equal(1, rows[1].Cnt);
             Assert.Equal(1, rows[2].Cnt);
-            Assert.Contains(rows[1].Key, new[] { "West", (string)null });
-            Assert.Contains(rows[2].Key, new[] { "West", (string)null });
+            Assert.Contains(rows[1].Key, new[] { "West", null });
+            Assert.Contains(rows[2].Key, new[] { "West", null });
         }
 
         [Fact]
@@ -318,6 +318,38 @@ namespace Xbc.DbAccess.UnitTests.Entity
 
             Assert.Equal(2, rows.Count);
             Assert.All(rows, r => Assert.NotEqual(2L, r.CustomerId));
+        }
+
+        [Fact]
+        public async Task GroupBy_HavingBareBooleanKey_FiltersByGroupKey()
+        {
+            // 布尔键列裸谓词（g.Key.IsActive 同款）：与 Where 的布尔列裸谓词对齐，翻译为 [Col] = @p 参数化比较
+            var rows = await Query()
+                .GroupBy(u => new { u.CustomerId, u.Approved })
+                .Having(g => g.Key.Approved)
+                .Select(g => new { g.Key.CustomerId, g.Key.Approved, Cnt = g.Count() })
+                .ToListAsync();
+
+            // 组内 Approved：客户 1（true）、客户 2（false）、客户 3（true）——裸谓词只放行 true 组
+            Assert.Equal(2, rows.Count);
+            Assert.Contains(rows, r => r.CustomerId == 1L && r.Approved && r.Cnt == 2);
+            Assert.Contains(rows, r => r.CustomerId == 3L && r.Approved && r.Cnt == 1);
+        }
+
+        [Fact]
+        public async Task GroupBy_HavingNotBareBooleanKey_FiltersByGroupKey()
+        {
+            // NOT 包裹的单成员布尔键裸谓词（g.Key）
+            var rows = await Query()
+                .GroupBy(u => u.Approved)
+                .Having(g => !g.Key)
+                .Select(g => new { g.Key, Cnt = g.Count() })
+                .ToListAsync();
+
+            // false 组：客户 2（2 行）
+            Assert.Single(rows);
+            Assert.False(rows[0].Key);
+            Assert.Equal(2, rows[0].Cnt);
         }
 
         [Fact]
@@ -706,6 +738,15 @@ namespace Xbc.DbAccess.UnitTests.Entity
         {
             await Assert.ThrowsAsync<NotSupportedException>(
                 () => Query().GroupBy(u => new { u.CustomerId }).Having(g => true).CountAsync());
+        }
+
+        [Fact]
+        public async Task GroupedQuery_NonBooleanBareKeyHaving_Throws()
+        {
+            // 谓词位置的非布尔键列：裸列名不是合法 SQL 谓词，与 Where 的非布尔列裸谓词同款守卫
+            //（经转换包裹编译为 bool 谓词，框架剥离转换后落到裸键列成员，守卫在此拦截）
+            await Assert.ThrowsAsync<NotSupportedException>(
+                () => Query().GroupBy(u => new { u.CustomerId }).Having(g => (bool)(object)g.Key.CustomerId).CountAsync());
         }
 
         [Fact]

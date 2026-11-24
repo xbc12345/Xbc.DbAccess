@@ -1,5 +1,3 @@
-using System;
-using System.Reflection;
 using System.Data;
 using Xbc.DbAccess.Entity;
 using Xunit;

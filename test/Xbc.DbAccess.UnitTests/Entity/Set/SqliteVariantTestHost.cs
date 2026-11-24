@@ -1,9 +1,5 @@
-using System;
 using System.Data.Common;
 using System.Data.SQLite;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
 using Xbc.DbAccess.Sqlite;
 
 namespace Xbc.DbAccess.UnitTests.Entity.Set
