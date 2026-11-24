@@ -48,6 +48,26 @@ namespace Xbc.DbAccess.UnitTests.Connections
         }
 
         [Fact]
+        public void Validate_WhenMaxLifetimeNegative_ThrowsArgumentOutOfRangeException()
+        {
+            var options = new DbConnectionPoolOptions { MaxLifetime = TimeSpan.FromSeconds(-1) };
+
+            var exception = Assert.Throws<ArgumentOutOfRangeException>(options.Validate);
+
+            Assert.Equal("MaxLifetime", exception.ParamName);
+        }
+
+        [Fact]
+        public void Validate_WhenMaxLifetimeZero_AllowsUnlimitedLifetime()
+        {
+            var options = new DbConnectionPoolOptions { MaxLifetime = TimeSpan.Zero };
+
+            Exception exception = Record.Exception(options.Validate);
+
+            Assert.Null(exception);
+        }
+
+        [Fact]
         public void Validate_WhenCleanupIntervalNotPositive_ThrowsArgumentOutOfRangeException()
         {
             var options = new DbConnectionPoolOptions { CleanupInterval = TimeSpan.Zero };

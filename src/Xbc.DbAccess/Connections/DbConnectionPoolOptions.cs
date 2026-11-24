@@ -29,6 +29,13 @@ namespace Xbc.DbAccess
         public TimeSpan MaxIdleTime { get; set; } = TimeSpan.FromMinutes(15);
 
         /// <summary>
+        /// 连接最大寿命。超过该寿命的连接在回收时销毁换新、激活与定时清理时淘汰，默认值为 30 分钟。
+        /// <para>防止 NAT、负载均衡器或数据库侧静默断链产生的僵尸连接流入借用者；一直被借用的长寿命连接也会在归还池时被换新。</para>
+        /// <para><see cref="TimeSpan.Zero"/> 表示不限制寿命。超龄连接的清理不受 <see cref="MinPoolSize"/> 下限保护（寿命为安全上限，优先于保温下限）。</para>
+        /// </summary>
+        public TimeSpan MaxLifetime { get; set; } = TimeSpan.FromMinutes(30);
+
+        /// <summary>
         /// 连接池清理间隔，默认值为 5 分钟。
         /// </summary>
         public TimeSpan CleanupInterval { get; set; } = TimeSpan.FromMinutes(5);
@@ -67,6 +74,9 @@ namespace Xbc.DbAccess
 
             if (MaxIdleTime <= TimeSpan.Zero)
                 throw new ArgumentOutOfRangeException(nameof(MaxIdleTime), MaxIdleTime, "连接最大空闲时间必须为正。");
+
+            if (MaxLifetime < TimeSpan.Zero)
+                throw new ArgumentOutOfRangeException(nameof(MaxLifetime), MaxLifetime, "连接最大寿命不能为负数（TimeSpan.Zero 表示不限制）。");
 
             if (CleanupInterval <= TimeSpan.Zero)
                 throw new ArgumentOutOfRangeException(nameof(CleanupInterval), CleanupInterval, "连接池清理间隔必须为正。");

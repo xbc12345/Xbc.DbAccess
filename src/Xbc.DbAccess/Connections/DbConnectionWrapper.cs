@@ -24,6 +24,8 @@ namespace Xbc.DbAccess
         /// <summary>
         /// 内部的原生提供程序连接（如 SqlConnection/NpgsqlConnection）。
         /// <para>供需要驱动专属 API 的调用方（如原生 bulk 插入）解包获取真实连接；常规命令执行走本包装器即可。</para>
+        /// <para>禁止在此连接上直接调用 <c>BeginTransaction</c> 开启事务：挂起事务防护（<see cref="HasPendingTransaction"/>）
+        /// 依赖包装器记录事务，绕过记录会导致带活事务的连接被回池复用；需要事务时一律经框架事务包装器获取内部事务。</para>
         /// </summary>
         internal DbConnection UnderlyingConnection => innerConnection;
 
@@ -155,6 +157,10 @@ namespace Xbc.DbAccess
                 innerConnection.Close();
 
             innerConnection.Dispose();
+            // 注意：base.Dispose(bool) 会虚调用 Close()——池化连接的 Close 被重写为 ReturnToPool。
+            // 此处安全依赖两点：①ActualDispose 已先 Exchange 进 Disposed 终态，ReturnToPool 的 CAS 全部落空；
+            // ②Open 失败路径中基类保证 OnConnectionCreationFailed（退订回收/生命周期事件）先于本方法执行。
+            // 改动状态机转换或该调用顺序时需重估此链条
             base.Dispose(true);
         }
 

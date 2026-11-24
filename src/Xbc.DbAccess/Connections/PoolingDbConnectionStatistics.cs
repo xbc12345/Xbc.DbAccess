@@ -165,6 +165,13 @@ namespace Xbc.DbAccess
         /// <para>排队等待时因取消令牌触发而中止的请求递增；持续大于 0 说明等待时间过长，可结合 <see cref="TotalQueued"/> 评估。</para>
         /// </summary>
         public long TotalCancelled { get; internal set; }
+
+        /// <summary>
+        /// 因借用者取消而销毁的连接数（累计值）。
+        /// <para>激活阶段借用者取消会销毁健康的空闲连接、创建阶段取消会中断新建连接，两者均计入此指标；
+        /// 行为保守安全（销毁重建），此指标用于评估取消频率对连接创建量的影响，与请求结局的 <see cref="TotalCancelled"/> 互不影响。</para>
+        /// </summary>
+        public long TotalDestroyedByCancellation { get; internal set; }
         #endregion
     }
 }

@@ -7,8 +7,13 @@ namespace Xbc.DbAccess
 {
     /// <summary>
     /// 池化数据库连接管理器，维护连接池以复用数据库连接。
-    /// <para>连接使用完毕后归还到池中等待复用。以信号量控制可用连接名额（总数 MaxPoolSize = 空闲连接数 + 可创建余量），
-    /// 等待者由连接回收或销毁时归还名额唤醒，而非超时轮询。</para>
+    /// <para>连接使用完毕后归还到池中等待复用。以信号量控制借出名额，等待者由连接回收或销毁时归还名额唤醒，而非超时轮询。</para>
+    /// <para>名额账目模型（名额跟借用者走，与连接来源无关）：
+    /// ①每次借用领一张名额，无论连接取自空闲队列还是现场新建；②预创建连接是免费库存，创建时不消耗名额，首个借用者为其消耗；
+    /// ③回收时连接入空闲队列并归还名额，此后该空闲连接的名额以「已归还」形式滞留证池，等待复用者重新消耗。
+    /// 由此恒等式 MaxPoolSize = 空闲连接数 + 可创建余量 仅在预热后（预创建连接都经历过至少一次借还）成立；
+    /// 任何时刻均有 名额数 = MaxPoolSize − 活动连接数，且存活连接总数恒不超过 MaxPoolSize（名额先扣后取 + 借用者先耗尽空闲队列再创建）。</para>
+    /// <para>MinPoolSize 决定冷启动预创建的库存量并作为空闲清理下限；MaxPoolSize 经名额限制同时在借的连接数，与库存无关。</para>
     /// </summary>
     internal sealed class PoolingDbConnectionManager : DbConnectionManagerBase
     {
@@ -22,11 +27,13 @@ namespace Xbc.DbAccess
         private readonly ConcurrentDictionary<Guid, PoolingDbConnection> activeConnections
             = new ConcurrentDictionary<Guid, PoolingDbConnection>();
 
-        // 可用连接名额信号量：空闲连接 + 可创建余量，总数不超过 MaxPoolSize
+        // 可用连接名额信号量：总名额 MaxPoolSize，限制同时在借的连接数；预创建的空闲连接不占名额（免费库存），
+        // 其首个借用者消耗名额，回收连接归还名额
         private readonly SemaphoreSlim connectionSemaphore;
         private readonly string validationQuery;// 健康检查命令文本（SELECT 1 附加方言 FROM 子句，如 Oracle 的 FROM DUAL）
         private readonly Timer cleanupTimer;// 清理定时器
         private readonly Statistics statistics;// 统计信息
+        private int poolWarmupStage;// 预创建懒预热标记：0=未开始，1=已开始/已完成（含超时后转按需创建）
 
         /// <summary>
         /// 初始化池化连接管理器。
@@ -51,12 +58,8 @@ namespace Xbc.DbAccess
             // SELECT 1 对 Oracle（23c 之前）不是合法语句，需附加方言的 FROM 子句
             validationQuery = "SELECT 1" + (sqlDialect?.ScalarSelectFromClause ?? string.Empty);
 
-            // 初始可用名额全部为可创建余量
+            // 初始可用名额全部为可创建余量（预创建连接是免费库存，不占用名额，见类注释的账目模型）
             connectionSemaphore = new SemaphoreSlim(poolOptions.MaxPoolSize, poolOptions.MaxPoolSize);
-
-            // 初始化连接池，创建 MinPoolSize 个连接
-            if (poolOptions.MinPoolSize > 0)
-                InitializePool();
 
             // 启动清理定时器
             cleanupTimer = new Timer(_ => CleanupIdleConnections(),
@@ -65,10 +68,11 @@ namespace Xbc.DbAccess
                 poolOptions.CleanupInterval);
         }
 
-        #region 初始化连接池
+        #region 预创建连接池
         /// <summary>
-        /// 初始化连接池，预创建最小连接数。
-        /// <para>构造函数中同步执行，最长阻塞 30 秒；单条连接创建失败仅记录日志并跳过，后续按需创建。</para>
+        /// 预创建 <see cref="DbConnectionPoolOptions.MinPoolSize"/> 个空闲连接。
+        /// <para>由 <see cref="EnsurePoolWarmedUp"/> 在首次借用请求时同步触发（不阻塞构造），最长阻塞 30 秒并记录超时日志；
+        /// 单条连接创建失败仅记录日志并跳过，后续按需创建。</para>
         /// </summary>
         private void InitializePool()
         {
@@ -97,7 +101,24 @@ namespace Xbc.DbAccess
                 }));
             }
 
-            Task.WaitAll(tasks.ToArray(), TimeSpan.FromSeconds(30));
+            if (!Task.WaitAll(tasks.ToArray(), TimeSpan.FromSeconds(30)))
+                DiagnosticLog.Warn(nameof(PoolingDbConnectionManager), "预创建数据库连接池超过 30 秒仍未完成，未完成的连接将转入按需创建。");
+        }
+
+        /// <summary>
+        /// 按需预热连接池（预创建 MinPoolSize 个空闲连接）。
+        /// <para>预创建移出构造函数以避免阻塞构造：首个借用请求触发同步预热；并发请求经 <see cref="Interlocked.Exchange"/> 去重后
+        /// 跳过预热直接按需创建，不等待预热完成。预热是尽力而为的库存优化，不承载容量语义（容量由名额信号量独立保证）。</para>
+        /// </summary>
+        private void EnsurePoolWarmedUp()
+        {
+            if (poolOptions.MinPoolSize == 0)
+                return;
+
+            if (Interlocked.Exchange(ref poolWarmupStage, 1) == 1)
+                return;
+
+            InitializePool();
         }
         #endregion
 
@@ -112,6 +133,7 @@ namespace Xbc.DbAccess
         public override async Task<DbConnection> GetOrCreateAsync(CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
+            EnsurePoolWarmedUp();
             statistics.RecordRequest();
             var startTimestamp = StopwatchClock.ElapsedTicks;
 
@@ -161,9 +183,14 @@ namespace Xbc.DbAccess
             {
                 newConnection = await CreateActiveConnectionAsync(cancellationToken).ConfigureAwait(false) as PoolingDbConnection;
             }
-            catch
+            catch (Exception ex)
             {
                 statistics.RecordCreateFailed();
+
+                // 借用者取消导致的创建中断单列统计：连接由基类销毁，请求结局语义仍为创建失败
+                if (ex is OperationCanceledException)
+                    statistics.RecordDestroyedByCancellation();
+
                 ReleaseLicenseSafely();// 创建失败，归还许可证
                 throw;
             }
@@ -218,15 +245,25 @@ namespace Xbc.DbAccess
                 if (connection.IsDisposed)
                     continue;
 
+                // 超过最大寿命的空闲连接直接销毁：防止 NAT/负载均衡器静默断链的僵尸连接流入借用者。
+                // 空闲连接不占名额（回收时已归还 / 预创建从未消耗），销毁无需归还名额
+                if (poolOptions.MaxLifetime > TimeSpan.Zero && connection.Age > poolOptions.MaxLifetime)
+                {
+                    connection.ActualDispose();
+                    continue;
+                }
+
                 // 激活异常视同激活失败：连接不在活动集合，ActualDispose 不归还许可证，无双重归还
                 bool activated = false;
                 try
                 {
                     activated = await connection.ActivateAsync(poolOptions.ValidationSkipInterval, poolOptions.ValidationCommandTimeout, validationQuery, cancellationToken).ConfigureAwait(false);
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // 忽略激活连接时发生的异常，视同激活失败
+                    // 忽略激活连接时发生的异常，视同激活失败；借用者取消单列统计，便于评估取消对健康连接的误杀
+                    if (ex is OperationCanceledException)
+                        statistics.RecordDestroyedByCancellation();
                 }
 
                 if (!activated)
@@ -266,10 +303,23 @@ namespace Xbc.DbAccess
             // 从活动连接中移除
             activeConnections.TryRemove(connection.ConnectionId, out _);
 
-            // 连接已被释放（并发下 ActualDispose 可能晚于 Recycled 事件）：不入队，仅归还许可证为可创建余量
+            // 连接已被释放（并发下 ActualDispose 可能晚于 Recycled 事件）：不入队，仅归还许可证为可创建余量。
+            // 当前调用图中本分支不可达：Active 状态下的 ActualDispose 均经创建失败退订（OnConnectionCreationFailed）、
+            // 管理器释放退订（DisposeConnection）或 HasPendingTransaction 同线程销毁（先于 Recycled 事件触发），
+            // 不会在 Recycled 事件之后再触发归还。作为纵深防御保留，防止未来新增 ActualDispose 调用者导致许可证双重归还
             if (connection.IsDisposed)
             {
                 ReleaseLicenseSafely();
+                return;
+            }
+
+            // 超过最大寿命的连接不入池：归还许可证为可创建余量后销毁换新（一直被借用的长寿命连接在归还时淘汰），
+            // 由下一个借用者现场重建；销毁经生命周期结束事件统计并结束追踪，无需在此重复记账。
+            // 先归还后销毁：销毁异常不吞掉已归还的名额，避免许可证泄漏
+            if (poolOptions.MaxLifetime > TimeSpan.Zero && connection.Age > poolOptions.MaxLifetime)
+            {
+                ReleaseLicenseSafely();
+                connection.ActualDispose();
                 return;
             }
 
@@ -307,9 +357,14 @@ namespace Xbc.DbAccess
             if (sender is not PoolingDbConnection connection || connection == null)
                 return;
 
-            // 正在释放时跳过：Dispose 中信号量先于状态销毁，窗口期放行会在 Release 处抛 ObjectDisposedException
+            // 正在释放时跳过：Dispose 中信号量先于状态销毁，窗口期放行会在 Release 处抛 ObjectDisposedException。
+            // 释放竞态窗口内仍需结束追踪：清理回调正处理的连接经 ActualDispose 到达此处时，不再有统一收尾兜底，
+            // 直接跳过会让该连接的追踪记录永久滞留（对未追踪的 id 是无害 no-op）
             if (IsDisposed || IsDisposing)
+            {
+                connectionTracker.EndTracking(e.ResourceId);
                 return;
+            }
 
             if (activeConnections.TryRemove(e.ResourceId, out _))
             {
@@ -393,7 +448,11 @@ namespace Xbc.DbAccess
 
                     // 当前空闲连接数 = idleConnections.Count + 1（含当前连接）
                     int currentIdleCount = idleConnections.Count + 1;
-                    bool shouldDispose = now - connection.LastActiveAt > poolOptions.MaxIdleTime && currentIdleCount > poolOptions.MinPoolSize;
+
+                    // 超过最大寿命的连接无条件清理：寿命为安全上限，优先于 MinPoolSize 保温下限
+                    bool lifetimeExpired = poolOptions.MaxLifetime > TimeSpan.Zero && connection.Age > poolOptions.MaxLifetime;
+                    bool shouldDispose = lifetimeExpired ||
+                        (now - connection.LastActiveAt > poolOptions.MaxIdleTime && currentIdleCount > poolOptions.MinPoolSize);
 
                     if (shouldDispose)
                     {
@@ -491,6 +550,7 @@ namespace Xbc.DbAccess
             private long totalQueued;
             private long totalRecycled;
             private long totalCancelled;
+            private long totalDestroyedByCancellation;
 
             public Statistics(bool isEnabled, int minPoolSize, int maxPoolSize)
             {
@@ -599,6 +659,17 @@ namespace Xbc.DbAccess
             }
 
             /// <summary>
+            /// 记录因借用者取消而销毁的连接（激活阶段取消误杀健康空闲连接 / 创建阶段取消中断新建连接）。
+            /// </summary>
+            public void RecordDestroyedByCancellation()
+            {
+                if (!isEnabled)
+                    return;
+
+                Interlocked.Increment(ref totalDestroyedByCancellation);
+            }
+
+            /// <summary>
             /// 获取统计信息快照。
             /// </summary>
             /// <param name="activeCount">活动集合实时计数（调用方测量传入）。</param>
@@ -624,6 +695,7 @@ namespace Xbc.DbAccess
                     TotalExhausted = Interlocked.Read(ref totalExhausted),
                     TotalQueued = Interlocked.Read(ref totalQueued),
                     TotalCancelled = Interlocked.Read(ref totalCancelled),
+                    TotalDestroyedByCancellation = Interlocked.Read(ref totalDestroyedByCancellation),
                 };
             }
         }

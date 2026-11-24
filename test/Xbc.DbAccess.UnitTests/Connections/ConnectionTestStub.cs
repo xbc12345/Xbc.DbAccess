@@ -243,6 +243,7 @@ namespace Xbc.DbAccess.UnitTests.Connections
             int minPoolSize = 0,
             int maxPoolSize = 10,
             TimeSpan? maxIdleTime = null,
+            TimeSpan? maxLifetime = null,
             bool enableStatistics = true)
         {
             return new DbConnectionOptions
@@ -255,7 +256,8 @@ namespace Xbc.DbAccess.UnitTests.Connections
                     MaxPoolSize = maxPoolSize,
                     ConnectionWaitTimeout = TimeSpan.FromSeconds(5),
                     CleanupInterval = TimeSpan.FromMinutes(10),
-                    MaxIdleTime = maxIdleTime ?? TimeSpan.FromMinutes(15)
+                    MaxIdleTime = maxIdleTime ?? TimeSpan.FromMinutes(15),
+                    MaxLifetime = maxLifetime ?? TimeSpan.FromMinutes(30)
                 }
             };
         }

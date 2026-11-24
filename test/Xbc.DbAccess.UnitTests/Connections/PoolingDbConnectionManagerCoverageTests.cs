@@ -1,3 +1,4 @@
+using System.Data;
 using System.Data.Common;
 using System.Reflection;
 using Moq;
@@ -27,6 +28,18 @@ namespace Xbc.DbAccess.UnitTests.Connections
         }
 
         /// <summary>
+        /// 通过反射调用私有预热方法，模拟首个借用请求触发的懒预热。
+        /// </summary>
+        private static void InvokeWarmup(PoolingDbConnectionManager manager)
+        {
+            var method = typeof(PoolingDbConnectionManager).GetMethod(
+                "EnsurePoolWarmedUp", BindingFlags.NonPublic | BindingFlags.Instance);
+
+            Assert.NotNull(method);
+            method.Invoke(manager, null);
+        }
+
+        /// <summary>
         /// 获取池化连接的内部 stub 连接，用于配置行为（延迟、异常等）。
         /// </summary>
         private static StubDbConnection InnerOf(PoolingDbConnection connection)
@@ -39,7 +52,7 @@ namespace Xbc.DbAccess.UnitTests.Connections
         #region 池预创建测试
 
         [Fact]
-        public void Constructor_WithMinPoolSize_PrecreatesIdleConnectionsAndTracks()
+        public void Warmup_WithMinPoolSize_PrecreatesIdleConnectionsAndTracks()
         {
             var factory = ConnectionTestHelper.CreateStubFactory();
             var tracker = new Mock<IDbConnectionTracker>();
@@ -47,8 +60,17 @@ namespace Xbc.DbAccess.UnitTests.Connections
             using var manager = new PoolingDbConnectionManager(
                 ConnectionTestHelper.CreatePoolOptions(minPoolSize: 3, maxPoolSize: 5), factory.Object, tracker.Object);
 
+            // 预创建已移出构造函数：构造完成时池尚无连接
             var statistics = (PoolingDbConnectionStatistics)manager.GetStatistics();
+            Assert.Equal(0, statistics.IdleConnections);
+            Assert.Equal(0, statistics.TotalCreated);
+            tracker.Verify(
+                t => t.StartTracking(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<double>()), Times.Never);
 
+            // 触发懒预热：MinPoolSize 个连接全部就位并开始追踪
+            InvokeWarmup(manager);
+
+            statistics = (PoolingDbConnectionStatistics)manager.GetStatistics();
             Assert.Equal(3, statistics.TotalCreated);
             Assert.Equal(3, statistics.IdleConnections);
             Assert.Equal(0, statistics.ActiveConnections);
@@ -60,7 +82,27 @@ namespace Xbc.DbAccess.UnitTests.Connections
         }
 
         [Fact]
-        public void Constructor_WhenCreateConnectionThrows_RecordsCreateFailed()
+        public async Task GetOrCreateAsync_FirstBorrow_TriggersLazyWarmup()
+        {
+            var factory = ConnectionTestHelper.CreateStubFactory();
+            var tracker = new Mock<IDbConnectionTracker>();
+
+            using var manager = new PoolingDbConnectionManager(
+                ConnectionTestHelper.CreatePoolOptions(minPoolSize: 3, maxPoolSize: 5), factory.Object, tracker.Object);
+
+            var first = (PoolingDbConnection)await manager.GetOrCreateAsync();
+
+            // 首借自动触发懒预热：预创建 3 条，借用者命中预创建库存取走 1 条
+            Assert.False(first.IsDisposed);
+            var statistics = (PoolingDbConnectionStatistics)manager.GetStatistics();
+            Assert.Equal(3, statistics.TotalCreated);
+            Assert.Equal(1, statistics.TotalHits);
+            Assert.Equal(2, statistics.IdleConnections);
+            Assert.Equal(1, statistics.ActiveConnections);
+        }
+
+        [Fact]
+        public void Warmup_WhenCreateConnectionThrows_RecordsCreateFailed()
         {
             var factory = new Mock<DbProviderFactory>();
             factory.Setup(static f => f.CreateConnection())
@@ -70,15 +112,16 @@ namespace Xbc.DbAccess.UnitTests.Connections
             using var manager = new PoolingDbConnectionManager(
                 ConnectionTestHelper.CreatePoolOptions(minPoolSize: 2), factory.Object, tracker.Object);
 
-            var statistics = (PoolingDbConnectionStatistics)manager.GetStatistics();
+            InvokeWarmup(manager);
 
+            var statistics = (PoolingDbConnectionStatistics)manager.GetStatistics();
             Assert.Equal(2, statistics.TotalCreateFailed);
             Assert.Equal(0, statistics.TotalCreated);
             Assert.Equal(0, statistics.IdleConnections);
         }
 
         [Fact]
-        public void Constructor_WhenStartTrackingThrows_ActualDisposesConnection()
+        public void Warmup_WhenStartTrackingThrows_ActualDisposesConnection()
         {
             var factory = ConnectionTestHelper.CreateStubFactory();
             var tracker = new Mock<IDbConnectionTracker>();
@@ -87,6 +130,8 @@ namespace Xbc.DbAccess.UnitTests.Connections
 
             using var manager = new PoolingDbConnectionManager(
                 ConnectionTestHelper.CreatePoolOptions(minPoolSize: 1), factory.Object, tracker.Object);
+
+            InvokeWarmup(manager);
 
             var statistics = (PoolingDbConnectionStatistics)manager.GetStatistics();
 
@@ -456,7 +501,7 @@ namespace Xbc.DbAccess.UnitTests.Connections
         }
 
         [Fact]
-        public async Task Dispose_WhileDisposing_LifecycleEndedEventIsSkipped()
+        public async Task LifecycleEnded_WhileDisposing_EndsTrackingWithoutRelease()
         {
             var factory = ConnectionTestHelper.CreateStubFactory();
             var tracker = new Mock<IDbConnectionTracker>();
@@ -464,19 +509,166 @@ namespace Xbc.DbAccess.UnitTests.Connections
             using var manager = new PoolingDbConnectionManager(
                 ConnectionTestHelper.CreatePoolOptions(maxPoolSize: 5), factory.Object, tracker.Object);
 
+            var connection = (PoolingDbConnection)await manager.GetOrCreateAsync();
+
+            // 直接置位释放中状态（不启动 Dispose 循环，避免与循环清理的退订时序竞态，保证断言确定性）
+            var disposeStateField = typeof(DisposableBase).GetField("disposeState", BindingFlags.NonPublic | BindingFlags.Instance);
+            Assert.NotNull(disposeStateField);
+            var disposeState = (DisposableState)disposeStateField.GetValue(manager);
+            Assert.True(disposeState.TryDispose());
+
+            // 释放窗口期内连接生命周期结束：不归还名额（信号量销毁竞态），但处理器必须结束追踪，
+            // 否则清理回调正处理的连接（已出队、不在任何集合中）的追踪记录永久滞留
+            var method = typeof(PoolingDbConnectionManager).GetMethod(
+                "Connection_LifecycleEnded", BindingFlags.NonPublic | BindingFlags.Instance);
+            Assert.NotNull(method);
+            method.Invoke(manager, new object?[] { connection, new DbResourceLifecycleEndedEventArgs { ResourceId = connection.ConnectionId } });
+
+            tracker.Verify(t => t.EndTracking(connection.ConnectionId), Times.Exactly(1));
+        }
+
+        #endregion
+
+        #region 借用者取消统计测试
+
+        [Fact]
+        public async Task GetOrCreateAsync_WhenActivationCancelledByBorrower_RecordsDestroyedByCancellation()
+        {
+            var factory = ConnectionTestHelper.CreateStubFactory();
+            var tracker = new Mock<IDbConnectionTracker>();
+
+            using var manager = new PoolingDbConnectionManager(
+                ConnectionTestHelper.CreatePoolOptions(), factory.Object, tracker.Object);
+
             var first = (PoolingDbConnection)await manager.GetOrCreateAsync();
+            manager.Release(first);
+
+            // 已归还的连接处于关闭态且打开时被借用者取消：激活慢路径抛取消异常，
+            // 连接按激活失败销毁（保守安全），单独计入取消销毁统计，随后由新建连接补位
+            InnerOf(first).SetState(ConnectionState.Closed);
+            InnerOf(first).OpenException = new OperationCanceledException("借用者取消");
+
             var second = (PoolingDbConnection)await manager.GetOrCreateAsync();
-            InnerOf(first).DisposeDelay = TimeSpan.FromMilliseconds(300);// 拓宽释放窗口
 
-            var disposeTask = Task.Run(() => manager.Dispose());
-            ConnectionTestHelper.WaitForDisposing(manager);
+            Assert.NotSame(first, second);
+            Assert.True(first.IsDisposed);
+            var statistics = (PoolingDbConnectionStatistics)manager.GetStatistics();
+            Assert.Equal(1, statistics.TotalDestroyedByCancellation);
+            Assert.Equal(2, statistics.TotalCreated);
+            Assert.Equal(0, statistics.TotalHits);
+            Assert.Equal(1, statistics.TotalReleased);
+        }
 
-            // 释放窗口期内连接生命周期结束：事件被跳过，由 Dispose 循环统一兜底
-            second.ActualDispose();
-            await disposeTask;
+        [Fact]
+        public async Task GetOrCreateAsync_WhenCreateCancelledByBorrower_RecordsDestroyedByCancellation()
+        {
+            var factory = ConnectionTestHelper.CreateStubFactory();
+            var tracker = new Mock<IDbConnectionTracker>();
 
-            Assert.True(second.IsDisposed);
-            tracker.Verify(t => t.EndTracking(second.ConnectionId), Times.Once);
+            using var manager = new PoolingDbConnectionManager(
+                ConnectionTestHelper.CreatePoolOptions(), factory.Object, tracker.Object);
+
+            factory.Setup(static f => f.CreateConnection())
+                .Returns(() => new StubDbConnection { OpenException = new OperationCanceledException("借用者取消") });
+
+            using var cts = new CancellationTokenSource();
+            cts.Cancel();
+
+            _ = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => manager.GetOrCreateAsync(cts.Token));
+
+            // 创建阶段借用者取消：结局为创建失败，连接销毁单独计入取消销毁统计
+            var statistics = (PoolingDbConnectionStatistics)manager.GetStatistics();
+            Assert.Equal(1, statistics.TotalRequests);
+            Assert.Equal(1, statistics.TotalCreateFailed);
+            Assert.Equal(1, statistics.TotalDestroyedByCancellation);
+            Assert.Equal(0, statistics.TotalCreated);
+        }
+
+        #endregion
+
+        #region 连接最大寿命测试
+
+        [Fact]
+        public async Task Release_WhenConnectionLifetimeExpired_DestroysInsteadOfEnqueue()
+        {
+            var factory = ConnectionTestHelper.CreateStubFactory();
+            var tracker = new Mock<IDbConnectionTracker>();
+
+            using var manager = new PoolingDbConnectionManager(
+                ConnectionTestHelper.CreatePoolOptions(maxLifetime: TimeSpan.FromMilliseconds(50)),
+                factory.Object, tracker.Object);
+
+            var connection = (PoolingDbConnection)await manager.GetOrCreateAsync();
+            await Task.Delay(100);// 超过 MaxLifetime
+            manager.Release(connection);
+
+            // 归还时超龄：不入空闲队列直接销毁换新，名额归还为可创建余量
+            Assert.True(connection.IsDisposed);
+            var statistics = (PoolingDbConnectionStatistics)manager.GetStatistics();
+            Assert.Equal(0, statistics.IdleConnections);
+            Assert.Equal(0, statistics.TotalRecycled);
+            Assert.Equal(1, statistics.TotalReleased);
+            Assert.Equal(1, statistics.TotalCreated);
+
+            // 下一个借用者现场重建，不命中已销毁的连接
+            var second = (PoolingDbConnection)await manager.GetOrCreateAsync();
+
+            Assert.NotSame(connection, second);
+            Assert.False(second.IsDisposed);
+            statistics = (PoolingDbConnectionStatistics)manager.GetStatistics();
+            Assert.Equal(2, statistics.TotalCreated);
+            Assert.Equal(2, statistics.TotalRequests);
+            Assert.Equal(0, statistics.TotalHits);
+        }
+
+        [Fact]
+        public async Task GetOrCreateAsync_WhenWarmedConnectionLifetimeExpired_DisposesAndRecreates()
+        {
+            var factory = ConnectionTestHelper.CreateStubFactory();
+            var tracker = new Mock<IDbConnectionTracker>();
+
+            using var manager = new PoolingDbConnectionManager(
+                ConnectionTestHelper.CreatePoolOptions(minPoolSize: 1, maxLifetime: TimeSpan.FromMilliseconds(50)),
+                factory.Object, tracker.Object);
+
+            InvokeWarmup(manager);
+            await Task.Delay(100);// 预创建库存超龄
+
+            var connection = (PoolingDbConnection)await manager.GetOrCreateAsync();
+
+            // 借用时发现库存超龄：激活前销毁，现场重建，不命中空闲队列
+            Assert.False(connection.IsDisposed);
+            var statistics = (PoolingDbConnectionStatistics)manager.GetStatistics();
+            Assert.Equal(2, statistics.TotalCreated);
+            Assert.Equal(0, statistics.TotalHits);
+            Assert.Equal(1, statistics.TotalReleased);
+            Assert.Equal(0, statistics.IdleConnections);
+            Assert.Equal(1, statistics.ActiveConnections);
+        }
+
+        [Fact]
+        public async Task CleanupIdleConnections_WhenLifetimeExpired_DisposesRegardlessOfMinPoolSizeFloor()
+        {
+            var factory = ConnectionTestHelper.CreateStubFactory();
+            var tracker = new Mock<IDbConnectionTracker>();
+
+            using var manager = new PoolingDbConnectionManager(
+                ConnectionTestHelper.CreatePoolOptions(minPoolSize: 2, maxLifetime: TimeSpan.FromMilliseconds(50)),
+                factory.Object, tracker.Object);
+
+            var connection = (PoolingDbConnection)await manager.GetOrCreateAsync();
+            await Task.Delay(100);// 超过 MaxLifetime（MaxIdleTime 未超时）
+            manager.Release(connection);
+
+            InvokeCleanupIdleConnections(manager);
+
+            // 超龄清理不受 MinPoolSize 下限保护：借出连接归还时超龄销毁、预创建库存清理时超龄销毁
+            Assert.True(connection.IsDisposed);
+            var statistics = (PoolingDbConnectionStatistics)manager.GetStatistics();
+            Assert.Equal(0, statistics.IdleConnections);
+            Assert.Equal(2, statistics.TotalCreated);
+            Assert.Equal(0, statistics.TotalRecycled);
+            Assert.Equal(2, statistics.TotalReleased);
         }
 
         #endregion
