@@ -27,6 +27,16 @@ namespace Xbc.DbAccess.Oracle
         }
 
         /// <summary>
+        /// Oracle 布尔值域归一：bool 转换为 decimal 的 1/0（Oracle 无原生布尔类型），单条与 bulk 两条写入路径共用。
+        /// </summary>
+        /// <param name="value">参数值。</param>
+        /// <returns>归一后的值，非 bool 原样返回。</returns>
+        internal static object NormalizeBoolean(object value)
+        {
+            return value is bool b ? (b ? 1m : 0m) : value;
+        }
+
+        /// <summary>
         /// 创建数据库参数，bool 参数值归一为 decimal 的 1/0（Oracle 无原生布尔类型）。
         /// </summary>
         /// <param name="name">参数名。</param>
@@ -39,12 +49,9 @@ namespace Xbc.DbAccess.Oracle
         {
             // bool → 1/0 归一为 decimal（与 NUMBER 列域一致）；显式配置的 DbType.Boolean 同步剥离——
             // ODP.NET 对 Boolean DbType 映射 PL/SQL BOOLEAN，与 NUMBER 列比较时抛 ORA-00932（读路径按非零转 true 已兼容）
-            if (value is bool b)
-            {
-                value = b ? 1m : 0m;
-                if (dbType == DbType.Boolean)
-                    dbType = null;
-            }
+            value = NormalizeBoolean(value);
+            if (dbType == DbType.Boolean)
+                dbType = null;
 
             return base.CreateParameter(name, value, dbType, direction, size);
         }

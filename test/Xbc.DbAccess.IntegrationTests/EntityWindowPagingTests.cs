@@ -104,11 +104,11 @@ namespace Xbc.DbAccess.IntegrationTests
             // 手写 ROW_NUMBER() OVER (PARTITION BY ...) 标准窗口 SQL（五方言通用；MySQL 8+/SQLite 3.25+ 均支持）：
             // 各分区按 Amount 取 Top1 —— East → Eve(400)、West → Frank(500)
             var sql = $@"SELECT {Qi("CustomerName")} FROM (
-    SELECT {Qi("CustomerName")}, ROW_NUMBER() OVER (PARTITION BY {Qi("Region")} ORDER BY {Qi("Amount")} DESC) AS {Qi("rn")}
-    FROM {Qi("it_win_order")}
-) ranked
-WHERE {Qi("rn")} = 1
-ORDER BY {Qi("CustomerName")}";
+                            SELECT {Qi("CustomerName")}, ROW_NUMBER() OVER (PARTITION BY {Qi("Region")} ORDER BY {Qi("Amount")} DESC) AS {Qi("rn")}
+                            FROM {Qi("it_win_order")}
+                        ) ranked
+                        WHERE {Qi("rn")} = 1
+                        ORDER BY {Qi("CustomerName")}";
 
             await using var reader = await DbAccess.ExecuteReaderAsync(sql);
             var names = new List<string>();
