@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Data.Common;
 using System.Data.SQLite;
 using System.IO;
@@ -47,6 +48,8 @@ namespace Xbc.DbAccess.UnitTests.Entity.Set
         public bool PreferRowByRowBatchInsert => false;
 
         public string ScalarSelectFromClause => inner.ScalarSelectFromClause;
+
+        public IReadOnlyList<string> SessionStateResetCommands => inner.SessionStateResetCommands;
 
         public string SelectLastInsertId(string columnName) => inner.SelectLastInsertId(columnName);
 

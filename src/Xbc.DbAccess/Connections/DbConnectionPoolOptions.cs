@@ -2,8 +2,10 @@ namespace Xbc.DbAccess
 {
     /// <summary>
     /// 数据库连接池选项。
-    /// <para>已知限制：连接回池复用时仅重置当前数据库，临时表、SET 选项、CONTEXT_INFO、会话级锁等会话状态会残留给下一个借用者；
-    /// 需要会话级状态时请经 <c>IDbAccess.ProviderFactory.DbProviderFactory.CreateConnection()</c> 创建独立的非池化连接。
+    /// <para>会话状态重置：连接回池时按方言执行复位命令（SQL Server <c>sp_reset_connection</c>、PostgreSQL <c>DISCARD ALL</c>、
+    /// MySQL <c>ROLLBACK</c> + 常用会话变量复位；Oracle/SQLite 无对应机制，残留风险低），可经 <see cref="EnableSessionStateReset"/> 关闭。
+    /// MySQL 的临时表（会话级存续）与用户变量不在复位范围，其余方言特有会话状态（如 Oracle 的 ALTER SESSION 调整）同理；
+    /// 需要完整会话隔离时请经 <c>IDbAccess.ProviderFactory.DbProviderFactory.CreateConnection()</c> 创建独立的非池化连接。
     /// 挂起事务防护仅覆盖经框架事务包装器开启的事务：经 <c>UnderlyingConnection</c> 直接开启的事务不会阻止连接回池复用。</para>
     /// </summary>
     public sealed class DbConnectionPoolOptions
@@ -34,6 +36,13 @@ namespace Xbc.DbAccess
         /// <para><see cref="TimeSpan.Zero"/> 表示不限制寿命。超龄连接的清理不受 <see cref="MinPoolSize"/> 下限保护（寿命为安全上限，优先于保温下限）。</para>
         /// </summary>
         public TimeSpan MaxLifetime { get; set; } = TimeSpan.FromMinutes(30);
+
+        /// <summary>
+        /// 是否在连接归还连接池时执行会话状态重置（按方言提供命令，见 <c>ISqlDialect.SessionStateResetCommands</c>），默认开启。
+        /// <para>对标 SQL Server 内置连接池的 <c>sp_reset_connection</c>：临时表、SET 选项等会话残留不再透传给下一个借用者。</para>
+        /// <para>重置在归还线程同步执行（每条命令一个往返），对归还延迟敏感且确认无会话残留风险的应用可关闭。</para>
+        /// </summary>
+        public bool EnableSessionStateReset { get; set; } = true;
 
         /// <summary>
         /// 连接池清理间隔，默认值为 5 分钟。

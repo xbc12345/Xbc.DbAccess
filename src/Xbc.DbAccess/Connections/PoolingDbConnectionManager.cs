@@ -31,6 +31,7 @@ namespace Xbc.DbAccess
         // 其首个借用者消耗名额，回收连接归还名额
         private readonly SemaphoreSlim connectionSemaphore;
         private readonly string validationQuery;// 健康检查命令文本（SELECT 1 附加方言 FROM 子句，如 Oracle 的 FROM DUAL）
+        private readonly IReadOnlyList<string> sessionStateResetCommands;// 会话状态重置命令序列（按方言提供，回池时按序执行）
         private readonly Timer cleanupTimer;// 清理定时器
         private readonly Statistics statistics;// 统计信息
         private int poolWarmupStage;// 预创建懒预热标记：0=未开始，1=已开始/已完成（含超时后转按需创建）
@@ -41,7 +42,7 @@ namespace Xbc.DbAccess
         /// <param name="connectionOptions">连接选项。</param>
         /// <param name="providerFactory">数据库提供程序工厂。</param>
         /// <param name="connectionTracker">连接追踪器。</param>
-        /// <param name="sqlDialect">SQL 方言，用于生成方言正确的健康检查命令；null 时退回 SELECT 1。</param>
+        /// <param name="sqlDialect">SQL 方言，用于生成方言正确的健康检查命令与会话状态重置命令；null 时退回 SELECT 1 且不重置会话状态。</param>
         public PoolingDbConnectionManager(
             DbConnectionOptions connectionOptions,
             DbProviderFactory providerFactory,
@@ -57,6 +58,9 @@ namespace Xbc.DbAccess
 
             // SELECT 1 对 Oracle（23c 之前）不是合法语句，需附加方言的 FROM 子句
             validationQuery = "SELECT 1" + (sqlDialect?.ScalarSelectFromClause ?? string.Empty);
+
+            // 会话状态重置命令按方言提供（空序列表示该方言无会话残留风险或无原生等价机制）
+            sessionStateResetCommands = sqlDialect?.SessionStateResetCommands ?? System.Array.Empty<string>();
 
             // 初始可用名额全部为可创建余量（预创建连接是免费库存，不占用名额，见类注释的账目模型）
             connectionSemaphore = new SemaphoreSlim(poolOptions.MaxPoolSize, poolOptions.MaxPoolSize);
@@ -321,6 +325,23 @@ namespace Xbc.DbAccess
                 ReleaseLicenseSafely();
                 connection.ActualDispose();
                 return;
+            }
+
+            // 会话状态重置：入池前按方言执行复位命令，确保临时表、SET 选项等会话残留不透传给下一个借用者。
+            // 在归还线程同步执行（在归还线程与借用者线程之间二选一：放借用侧会破坏快速路径语义，归还侧每次借还周期恰好一次）；
+            // 重置失败视同连接失效，销毁换新，不得让带残留的连接入池
+            if (poolOptions.EnableSessionStateReset && sessionStateResetCommands.Count > 0)
+            {
+                try
+                {
+                    connection.ResetSessionState(sessionStateResetCommands, poolOptions.ValidationCommandTimeout);
+                }
+                catch
+                {
+                    ReleaseLicenseSafely();
+                    connection.ActualDispose();
+                    return;
+                }
             }
 
             connectionTracker.MarkRecycled(connection.ConnectionId);

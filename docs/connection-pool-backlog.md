@@ -72,13 +72,16 @@
 
 ## P3 功能差距对齐（对标 ADO.NET 内置池）
 
-### 10. 会话状态重置（对标 sp_reset_connection）
+### 10. 会话状态重置（对标 sp_reset_connection）✅ 已完成（2026-11-25）
 
-- **位置**：`PoolingDbConnection.ResetDatabaseContext`（当前仅重置数据库上下文）+ 各方言
-- **问题**：SQL Server 内置池回收连接时自动执行 `sp_reset_connection`（清临时表、SET 选项、CONTEXT_INFO、残留锁），我们的池没有——选项文件 L5-L6 以已知限制免责。会话级状态残留是真实的正确性风险。
-- **方案**：按方言生成回收重置命令：SQL Server `sp_reset_connection`；PostgreSQL `DISCARD ALL`（或按需 `RESET ALL` + `CLOSE ALL`）；MySQL 无原生等价，`ROLLBACK` + 显式重置常用会话变量；Oracle/SQLite 视需要评估。激活或回收时执行，纳入健康检查耗时预算。
-- **验证**：各方言真库测试（临时表/SET 选项在回池后对新借用者不可见）。
-- **备注**：工作量大，涉及五方言逐个实现；可与 §8 一起排期，两者都动回收/激活路径。
+- **位置**：`PoolingDbConnection.ResetSessionState`（回池时执行）+ 各方言 `SessionStateResetCommands`
+- **实现**：连接归还连接池时按方言同步执行复位命令（在归还线程执行，保持借用快速路径语义不变），任一命令失败连接销毁换新、不入池：
+  SQL Server `sp_reset_connection`；PostgreSQL `DISCARD ALL`；MySQL `ROLLBACK` + `SET SESSION sql_mode/time_zone = DEFAULT`（无原生等价机制）；
+  Oracle（临时表为全局临时表对象、事务隔离为事务级设置）与 SQLite（无会话级可变状态）默认空序列。
+  经 `DbConnectionPoolOptions.EnableSessionStateReset`（默认开启）关闭。
+- **验证**：单元 2015/2015（含回池执行/失败销毁/开关关闭 ×3 与五方言命令契约 ×5）；
+  真库集成 PG16 + MySQL 8.0.46 通过（SET datestyle/sql_mode → 回池复位 → 复借恢复默认，池容量 1 保证同连接可观测）；
+  SQL Server 用例（临时表复位）待环境重建后点亮。
 
 ## 审查结论存档（已验证不改动）
 

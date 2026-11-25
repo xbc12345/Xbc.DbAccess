@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Xbc.DbAccess.MySql
 {
     /// <summary>
@@ -15,6 +17,18 @@ namespace Xbc.DbAccess.MySql
         private MySqlDialect()
         {
         }
+
+        /// <summary>
+        /// 会话状态重置命令序列：MySQL 无 <c>sp_reset_connection</c> 的原生等价机制，回池时执行
+        /// <c>ROLLBACK</c>（驱动隐式事务兜底，框架挂起事务防护外的纵深防御）与常用会话变量复位
+        /// （<c>sql_mode</c>/<c>time_zone</c>，一条多赋值语句单往返完成）。
+        /// <para>临时表（会话级存续，无法枚举清理，连接销毁时自动释放）与用户变量（@v）不在复位范围。</para>
+        /// </summary>
+        public override IReadOnlyList<string> SessionStateResetCommands { get; } = new[]
+        {
+            "ROLLBACK",
+            "SET SESSION sql_mode = DEFAULT, SESSION time_zone = DEFAULT"
+        };
 
         /// <summary>
         /// 引用标识符（表名、列名等）。标识符中的反引号会被双写转义，避免提前闭合。

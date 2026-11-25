@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Xbc.DbAccess
 {
     /// <summary>
@@ -48,6 +50,13 @@ namespace Xbc.DbAccess
         /// <inheritdoc />
         /// <remarks>默认返回 null（无 FROM 子句限制）；要求所有 SELECT 显式指定表来源的方言（Oracle 23c 之前）重写返回 " FROM DUAL"。</remarks>
         public virtual string ScalarSelectFromClause => null;
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// 默认返回空序列（该方言无会话残留风险或无原生等价机制，如 Oracle 的临时表为全局临时表对象、事务隔离为事务级设置，
+        /// SQLite 无会话级可变状态）；会话状态可变的方言（SQL Server/PostgreSQL/MySQL）重写返回各自的复位命令序列。
+        /// </remarks>
+        public virtual IReadOnlyList<string> SessionStateResetCommands => System.Array.Empty<string>();
 
         /// <inheritdoc />
         public abstract string SelectLastInsertId(string columnName);

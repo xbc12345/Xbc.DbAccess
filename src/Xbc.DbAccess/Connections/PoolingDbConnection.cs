@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
 using System.Diagnostics;
@@ -281,6 +282,27 @@ namespace Xbc.DbAccess
             // 数据库被修改过则重置回初始数据库，避免残留访问其他数据库
             if (!string.Equals(innerConnection.Database, initialDatabase, StringComparison.OrdinalIgnoreCase))
                 innerConnection.ChangeDatabase(initialDatabase);
+        }
+
+        /// <summary>
+        /// 执行会话状态重置命令（连接归还连接池时由连接池调用，将连接恢复到"干净"会话再入池）。
+        /// <para>命令序列按方言提供（<c>ISqlDialect.SessionStateResetCommands</c>），任一命令失败由调用方将连接按失效销毁。</para>
+        /// </summary>
+        /// <param name="resetCommands">会话状态重置命令序列（按序执行）。</param>
+        /// <param name="commandTimeout">单条命令超时时间（秒）。</param>
+        internal void ResetSessionState(IReadOnlyList<string> resetCommands, int commandTimeout)
+        {
+            foreach (var commandText in resetCommands)
+            {
+                using (var command = innerConnection.CreateCommand())
+                {
+                    command.CommandType = CommandType.Text;
+                    command.CommandText = commandText;
+                    command.CommandTimeout = commandTimeout;
+
+                    command.ExecuteNonQuery();
+                }
+            }
         }
 
         /// <summary>

@@ -586,6 +586,101 @@ namespace Xbc.DbAccess.UnitTests.Connections
 
         #endregion
 
+        #region 会话状态重置测试
+
+        [Fact]
+        public async Task Release_RunsSessionResetCommandsBeforeEnqueue()
+        {
+            var factory = ConnectionTestHelper.CreateStubFactory();
+            var tracker = new Mock<IDbConnectionTracker>();
+            var dialect = new Mock<ISqlDialect>();
+            dialect.Setup(static d => d.ScalarSelectFromClause).Returns((string)null);
+            dialect.Setup(static d => d.SessionStateResetCommands)
+                .Returns(new[] { "ROLLBACK", "SET SESSION sql_mode = DEFAULT" });
+
+            using var manager = new PoolingDbConnectionManager(
+                ConnectionTestHelper.CreatePoolOptions(), factory.Object, tracker.Object, dialect.Object);
+
+            var connection = (PoolingDbConnection)await manager.GetOrCreateAsync();
+            manager.Release(connection);
+
+            // 回池时按序执行方言重置命令，随后连接入池
+            Assert.False(connection.IsDisposed);
+            Assert.Equal(new[] { "ROLLBACK", "SET SESSION sql_mode = DEFAULT" }, InnerOf(connection).CommandStub.NonQueryLog);
+            var statistics = (PoolingDbConnectionStatistics)manager.GetStatistics();
+            Assert.Equal(1, statistics.TotalRecycled);
+            Assert.Equal(1, statistics.IdleConnections);
+
+            // 重置后的连接可正常复用
+            var second = (PoolingDbConnection)await manager.GetOrCreateAsync();
+
+            Assert.Same(connection, second);
+            statistics = (PoolingDbConnectionStatistics)manager.GetStatistics();
+            Assert.Equal(1, statistics.TotalHits);
+        }
+
+        [Fact]
+        public async Task Release_WhenSessionResetCommandFails_DestroysConnectionInsteadOfEnqueue()
+        {
+            var factory = ConnectionTestHelper.CreateStubFactory();
+            var tracker = new Mock<IDbConnectionTracker>();
+            var dialect = new Mock<ISqlDialect>();
+            dialect.Setup(static d => d.ScalarSelectFromClause).Returns((string)null);
+            dialect.Setup(static d => d.SessionStateResetCommands).Returns(new[] { "BAD_RESET" });
+
+            using var manager = new PoolingDbConnectionManager(
+                ConnectionTestHelper.CreatePoolOptions(), factory.Object, tracker.Object, dialect.Object);
+
+            var connection = (PoolingDbConnection)await manager.GetOrCreateAsync();
+            InnerOf(connection).CommandStub.ExecuteNonQueryException = new InvalidOperationException("重置失败");
+
+            manager.Release(connection);
+
+            // 重置失败视同连接失效：不入池直接销毁，许可证归还为可创建余量
+            Assert.True(connection.IsDisposed);
+            var statistics = (PoolingDbConnectionStatistics)manager.GetStatistics();
+            Assert.Equal(0, statistics.TotalRecycled);
+            Assert.Equal(0, statistics.IdleConnections);
+            Assert.Equal(1, statistics.TotalReleased);
+
+            // 下一个借用者现场重建，不命中已销毁的连接
+            var second = (PoolingDbConnection)await manager.GetOrCreateAsync();
+
+            Assert.NotSame(connection, second);
+            statistics = (PoolingDbConnectionStatistics)manager.GetStatistics();
+            Assert.Equal(2, statistics.TotalCreated);
+            Assert.Equal(0, statistics.TotalHits);
+        }
+
+        [Fact]
+        public async Task Release_WhenSessionResetDisabled_SkipsResetCommands()
+        {
+            var factory = ConnectionTestHelper.CreateStubFactory();
+            var tracker = new Mock<IDbConnectionTracker>();
+            var dialect = new Mock<ISqlDialect>();
+            dialect.Setup(static d => d.ScalarSelectFromClause).Returns((string)null);
+            dialect.Setup(static d => d.SessionStateResetCommands).Returns(new[] { "ROLLBACK" });
+
+            using var manager = new PoolingDbConnectionManager(
+                ConnectionTestHelper.CreatePoolOptions(enableSessionStateReset: false), factory.Object, tracker.Object, dialect.Object);
+
+            var connection = (PoolingDbConnection)await manager.GetOrCreateAsync();
+            manager.Release(connection);
+
+            // 开关关闭：不执行重置命令，连接正常入池复用
+            Assert.Empty(InnerOf(connection).CommandStub.NonQueryLog);
+            var statistics = (PoolingDbConnectionStatistics)manager.GetStatistics();
+            Assert.Equal(1, statistics.TotalRecycled);
+
+            var second = (PoolingDbConnection)await manager.GetOrCreateAsync();
+
+            Assert.Same(connection, second);
+            statistics = (PoolingDbConnectionStatistics)manager.GetStatistics();
+            Assert.Equal(1, statistics.TotalHits);
+        }
+
+        #endregion
+
         #region 连接最大寿命测试
 
         [Fact]
