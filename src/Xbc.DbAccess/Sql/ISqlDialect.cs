@@ -6,6 +6,28 @@ namespace Xbc.DbAccess
     public interface ISqlDialect
     {
         /// <summary>
+        /// 单条 SQL 语句允许的最大参数数量（SQL Server 2100、MySQL 65535、PostgreSQL 32767、SQLite 999、Oracle 1000），
+        /// 批量写入与 IN 条件的批次大小按此上限计算。
+        /// </summary>
+        int MaxParameterCount { get; }
+
+        /// <summary>
+        /// 无 FROM 子句的纯量 SELECT（如 <c>SELECT 1</c>）需要追加的 FROM 子句。
+        /// Oracle 23c 前要求 SELECT 显式指定表来源，返回 " FROM DUAL"；无此限制的方言返回 null。
+        /// </summary>
+        string ScalarSelectFromClause { get; }
+
+        /// <summary>
+        /// 会话状态重置命令：连接归还连接池时执行（单条命令，多语句以分号批合并为单往返），将会话恢复到"干净"状态后再入池复用，
+        /// 对标 SQL Server 内置连接池的 <c>sp_reset_connection</c>。
+        /// <para>SQL Server 返回 <c>sp_reset_connection</c>（临时表、SET 选项、残留事务等一次性复位）；
+        /// PostgreSQL 返回 <c>DISCARD ALL</c>；MySQL 返回 ROLLBACK + 字符集/会话变量复位的分号批（协议级 COM_RESET_CONNECTION 无 SQL 形态）；
+        /// 无会话残留风险或无等价机制的方言（Oracle/SQLite）返回 null。</para>
+        /// <para>命令执行失败时，连接按失效处理销毁重建。</para>
+        /// </summary>
+        string SessionStateResetCommand { get; }
+
+        /// <summary>
         /// 引用标识符（表名、列名等）。
         /// </summary>
         /// <param name="identifier">要引用的标识符。</param>
@@ -43,12 +65,6 @@ namespace Xbc.DbAccess
         bool SupportsOffsetFetch(DbServerInfo serverInfo);
 
         /// <summary>
-        /// 单条 SQL 语句允许的最大参数数量（SQL Server 2100、MySQL 65535、PostgreSQL 32767、SQLite 999、Oracle 1000），
-        /// 批量写入与 IN 条件的批次大小按此上限计算。
-        /// </summary>
-        int MaxParameterCount { get; }
-
-        /// <summary>
         /// 单条多值 INSERT 语句（<c>INSERT INTO T (...) VALUES (...), (...)</c>）允许的最大行数。
         /// SQL Server 为 1000 行；Oracle 23c 前不支持多值 VALUES，返回 1 退化为单行插入；无行数限制返回 <see cref="int.MaxValue"/>。
         /// </summary>
@@ -60,22 +76,6 @@ namespace Xbc.DbAccess
         /// 网络型数据库多值 INSERT 可摊薄往返，返回 false。仅影响执行策略与批次划分，不影响 SQL 生成与结果。
         /// </summary>
         bool PreferRowByRowBatchInsert { get; }
-
-        /// <summary>
-        /// 无 FROM 子句的纯量 SELECT（如 <c>SELECT 1</c>）需要追加的 FROM 子句。
-        /// Oracle 23c 前要求 SELECT 显式指定表来源，返回 " FROM DUAL"；无此限制的方言返回 null。
-        /// </summary>
-        string ScalarSelectFromClause { get; }
-
-        /// <summary>
-        /// 会话状态重置命令序列：连接归还连接池时按序执行，将会话恢复到"干净"状态后再入池复用，
-        /// 对标 SQL Server 内置连接池的 <c>sp_reset_connection</c>。
-        /// <para>SQL Server 返回 <c>sp_reset_connection</c>（临时表、SET 选项、残留事务等一次性复位）；
-        /// PostgreSQL 返回 <c>DISCARD ALL</c>；MySQL 返回 <c>ROLLBACK</c> 与常用会话变量复位（无原生等价机制）；
-        /// 无会话残留风险或无等价机制的方言（Oracle/SQLite）返回空序列。</para>
-        /// <para>任一命令执行失败，连接按失效处理销毁重建。</para>
-        /// </summary>
-        System.Collections.Generic.IReadOnlyList<string> SessionStateResetCommands { get; }
 
         /// <summary>
         /// 获取查询最后插入的自增 ID 的 SQL 语句，用于不支持 OUTPUT/RETURNING 子句的数据库。

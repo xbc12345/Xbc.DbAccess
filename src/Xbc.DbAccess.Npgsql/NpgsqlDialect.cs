@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-
 namespace Xbc.DbAccess.Npgsql
 {
     /// <summary>
@@ -20,10 +18,15 @@ namespace Xbc.DbAccess.Npgsql
         }
 
         /// <summary>
+        /// 单条 SQL 语句允许的最大参数数量。Npgsql 驱动受 wire 协议 Bind 消息中 Int16 编码限制，实际最大参数数量为 32767。
+        /// </summary>
+        public override int MaxParameterCount => 32767;
+
+        /// <summary>
         /// 会话状态重置命令序列：回池时执行 <c>DISCARD ALL</c>，一次性复位会话变量（RESET ALL）、
         /// 关闭游标、释放临时表与准备语句、取消 NOTIFY 监听、重置会话授权。
         /// </summary>
-        public override IReadOnlyList<string> SessionStateResetCommands { get; } = new[] { "DISCARD ALL" };
+        public override string SessionStateResetCommand => "DISCARD ALL";
 
         /// <summary>
         /// 获取 INSERT 语句自增 ID 的取回方式：PostgreSQL 使用 RETURNING 子句（结果集方式），与引擎版本无关。
@@ -31,11 +34,6 @@ namespace Xbc.DbAccess.Npgsql
         /// <param name="serverInfo">数据库服务器版本信息（未使用）。</param>
         public override InsertIdentityMode GetInsertIdentityMode(DbServerInfo serverInfo)
             => InsertIdentityMode.OutputClause;
-
-        /// <summary>
-        /// 单条 SQL 语句允许的最大参数数量。Npgsql 驱动受 wire 协议 Bind 消息中 Int16 编码限制，实际最大参数数量为 32767。
-        /// </summary>
-        public override int MaxParameterCount => 32767;
 
         /// <summary>
         /// 单条多值 INSERT 语句允许的最大行数。PostgreSQL 无行数硬限制。

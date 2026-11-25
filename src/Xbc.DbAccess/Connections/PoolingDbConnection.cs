@@ -1,7 +1,6 @@
-using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
-using System.Diagnostics;
+using Xbc.DbAccess.Common;
 
 namespace Xbc.DbAccess
 {
@@ -10,7 +9,7 @@ namespace Xbc.DbAccess
     /// </summary>
     internal sealed class PoolingDbConnection : DbConnectionWrapper
     {
-        // 连接的状态
+        // 连接状态机
         private const int State_Created = 0;     // 已创建（尚未打开）
         private const int State_Active = 1;      // 活动状态（已打开，可使用）
         private const int State_Recycling = 2;   // 回收中（正在返回连接池）
@@ -18,28 +17,23 @@ namespace Xbc.DbAccess
         private const int State_Disposed = 4;    // 已释放
         private int state = State_Created;// 新创建的连接初始状态为已创建
         private string initialDatabase;// 初始数据库名称，用于激活时重置数据库上下文
-        private long lastActiveTicks;// 最后活动时间的本地 tick 值，使用原子操作读写，避免 32 位平台上 DateTime 赋值撕裂
-        private readonly long createdAtTimestamp = Stopwatch.GetTimestamp();// 创建时刻的单调时钟时间戳，用于最大寿命判定（不受系统时间调整影响）
+        private long lastActiveTimestamp = StopwatchClock.ElapsedTicks;// 最后活动时间的共享单调时钟时间戳（创建时刻初始化），使用原子操作读写，避免 32 位平台上 long 赋值撕裂
+        private readonly long createdAtTimestamp = StopwatchClock.ElapsedTicks;// 创建时刻的共享单调时钟时间戳，用于最大寿命判定（不受系统时间调整影响）
 
         /// <summary>
-        /// 连接创建时间。
+        /// 连接空闲时长（共享单调时钟，不受系统时间调整影响）：最后一次激活（打开或复用）距现在的时长，用于健康检查跳过间隔与空闲清理判定。
         /// </summary>
-        public DateTime CreatedAt { get; } = DateTime.Now;
-
-        /// <summary>
-        /// 连接存活时长（单调时钟，不受系统时间调整影响），用于连接池的最大寿命判定。
-        /// </summary>
-        internal TimeSpan Age => TimeSpan.FromSeconds((double)(Stopwatch.GetTimestamp() - createdAtTimestamp) / Stopwatch.Frequency);
-
-        /// <summary>
-        /// 最后活动时间。
-        /// </summary>
-        public DateTime LastActiveAt => new DateTime(Interlocked.Read(ref lastActiveTicks), DateTimeKind.Local);
+        internal TimeSpan IdleDuration => StopwatchClock.GetDurationFrom(Interlocked.Read(ref lastActiveTimestamp));
 
         /// <summary>
         /// 连接是否处于活动状态。
         /// </summary>
         public bool IsActive => Interlocked.CompareExchange(ref state, 0, 0) == State_Active;
+
+        /// <summary>
+        /// 连接存活时长（共享单调时钟，不受系统时间调整影响），用于连接池的最大寿命判定。
+        /// </summary>
+        internal TimeSpan Age => StopwatchClock.GetDurationFrom(createdAtTimestamp);
 
         /// <summary>
         /// 连接回收事件。
@@ -120,7 +114,7 @@ namespace Xbc.DbAccess
         private void SetConnectionStateActive()
         {
             Interlocked.Exchange(ref state, State_Active);// 标记连接为活动状态
-            Interlocked.Exchange(ref lastActiveTicks, DateTime.Now.Ticks);// 更新最后活动时间，避免长时间闲置而被连接池清理
+            Interlocked.Exchange(ref lastActiveTimestamp, StopwatchClock.ElapsedTicks);// 更新最后活动时间，避免长时间闲置而被连接池清理
         }
 
         /// <summary>
@@ -223,9 +217,8 @@ namespace Xbc.DbAccess
             if (HasPendingTransaction)
                 return false;
 
-            // 快速路径：连接已打开且最近使用在跳过间隔内，无需验证直接复用
-            if (innerConnection.State == ConnectionState.Open &&
-                (DateTime.Now - LastActiveAt) <= validationSkipInterval)
+            // 快速路径：连接已打开且空闲时长在跳过间隔内，无需验证直接复用
+            if (innerConnection.State == ConnectionState.Open && IdleDuration <= validationSkipInterval)
             {
                 try
                 {
@@ -286,22 +279,18 @@ namespace Xbc.DbAccess
 
         /// <summary>
         /// 执行会话状态重置命令（连接归还连接池时由连接池调用，将连接恢复到"干净"会话再入池）。
-        /// <para>命令序列按方言提供（<c>ISqlDialect.SessionStateResetCommands</c>），任一命令失败由调用方将连接按失效销毁。</para>
+        /// <para>命令按方言提供（<c>ISqlDialect.SessionStateResetCommand</c>，多语句以分号批合并为单往返），执行失败由调用方将连接按失效销毁。</para>
         /// </summary>
-        /// <param name="resetCommands">会话状态重置命令序列（按序执行）。</param>
-        /// <param name="commandTimeout">单条命令超时时间（秒）。</param>
-        internal void ResetSessionState(IReadOnlyList<string> resetCommands, int commandTimeout)
+        /// <param name="resetCommand">会话状态重置命令。</param>
+        /// <param name="commandTimeout">命令超时时间（秒）。</param>
+        internal void ResetSessionState(string resetCommand, int commandTimeout)
         {
-            foreach (var commandText in resetCommands)
+            using (var command = innerConnection.CreateCommand())
             {
-                using (var command = innerConnection.CreateCommand())
-                {
-                    command.CommandType = CommandType.Text;
-                    command.CommandText = commandText;
-                    command.CommandTimeout = commandTimeout;
-
-                    command.ExecuteNonQuery();
-                }
+                command.CommandType = CommandType.Text;
+                command.CommandText = resetCommand;
+                command.CommandTimeout = commandTimeout;
+                command.ExecuteNonQuery();
             }
         }
 

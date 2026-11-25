@@ -30,11 +30,11 @@ namespace Xbc.DbAccess
         // 可用连接名额信号量：总名额 MaxPoolSize，限制同时在借的连接数；预创建的空闲连接不占名额（免费库存），
         // 其首个借用者消耗名额，回收连接归还名额
         private readonly SemaphoreSlim connectionSemaphore;
+        private int poolWarmupStage;// 预创建懒预热标记：0=未开始，1=已开始/已完成（含超时后转按需创建）
         private readonly string validationQuery;// 健康检查命令文本（SELECT 1 附加方言 FROM 子句，如 Oracle 的 FROM DUAL）
-        private readonly IReadOnlyList<string> sessionStateResetCommands;// 会话状态重置命令序列（按方言提供，回池时按序执行）
+        private readonly string sessionStateResetCommand;// 会话状态重置命令（按方言提供，回池时执行；null 表示该方言无复位命令）
         private readonly Timer cleanupTimer;// 清理定时器
         private readonly Statistics statistics;// 统计信息
-        private int poolWarmupStage;// 预创建懒预热标记：0=未开始，1=已开始/已完成（含超时后转按需创建）
 
         /// <summary>
         /// 初始化池化连接管理器。
@@ -59,8 +59,8 @@ namespace Xbc.DbAccess
             // SELECT 1 对 Oracle（23c 之前）不是合法语句，需附加方言的 FROM 子句
             validationQuery = "SELECT 1" + (sqlDialect?.ScalarSelectFromClause ?? string.Empty);
 
-            // 会话状态重置命令按方言提供（空序列表示该方言无会话残留风险或无原生等价机制）
-            sessionStateResetCommands = sqlDialect?.SessionStateResetCommands ?? System.Array.Empty<string>();
+            // 会话状态重置命令按方言提供（null 表示该方言无会话残留风险或无原生等价机制）
+            sessionStateResetCommand = sqlDialect?.SessionStateResetCommand;
 
             // 初始可用名额全部为可创建余量（预创建连接是免费库存，不占用名额，见类注释的账目模型）
             connectionSemaphore = new SemaphoreSlim(poolOptions.MaxPoolSize, poolOptions.MaxPoolSize);
@@ -111,14 +111,17 @@ namespace Xbc.DbAccess
 
         /// <summary>
         /// 按需预热连接池（预创建 MinPoolSize 个空闲连接）。
-        /// <para>预创建移出构造函数以避免阻塞构造：首个借用请求触发同步预热；并发请求经 <see cref="Interlocked.Exchange"/> 去重后
-        /// 跳过预热直接按需创建，不等待预热完成。预热是尽力而为的库存优化，不承载容量语义（容量由名额信号量独立保证）。</para>
+        /// <para>预创建移出构造函数以避免阻塞构造：首个借用请求触发同步预热；并发请求经 Exchange 去重后
+        /// 跳过预热直接按需创建，不等待预热完成。已预热稳态经 volatile 读快速返回（借用热路径无原子写）。
+        /// 预热是尽力而为的库存优化，不承载容量语义（容量由名额信号量独立保证）。</para>
         /// </summary>
         private void EnsurePoolWarmedUp()
         {
-            if (poolOptions.MinPoolSize == 0)
+            // 稳态快速返回：已预热后每次借用仅一次 volatile 读（Exchange 是原子写，不放在稳态热路径上）
+            if (poolOptions.MinPoolSize == 0 || Volatile.Read(ref poolWarmupStage) == 1)
                 return;
 
+            // 首次触发：Exchange 原子去重，并发借用仅首个执行预热，其余跳过直接按需创建
             if (Interlocked.Exchange(ref poolWarmupStage, 1) == 1)
                 return;
 
@@ -330,11 +333,11 @@ namespace Xbc.DbAccess
             // 会话状态重置：入池前按方言执行复位命令，确保临时表、SET 选项等会话残留不透传给下一个借用者。
             // 在归还线程同步执行（在归还线程与借用者线程之间二选一：放借用侧会破坏快速路径语义，归还侧每次借还周期恰好一次）；
             // 重置失败视同连接失效，销毁换新，不得让带残留的连接入池
-            if (poolOptions.EnableSessionStateReset && sessionStateResetCommands.Count > 0)
+            if (poolOptions.EnableSessionStateReset && !string.IsNullOrEmpty(sessionStateResetCommand))
             {
                 try
                 {
-                    connection.ResetSessionState(sessionStateResetCommands, poolOptions.ValidationCommandTimeout);
+                    connection.ResetSessionState(sessionStateResetCommand, poolOptions.ValidationCommandTimeout);
                 }
                 catch
                 {
@@ -378,15 +381,17 @@ namespace Xbc.DbAccess
             if (sender is not PoolingDbConnection connection || connection == null)
                 return;
 
-            // 正在释放时跳过：Dispose 中信号量先于状态销毁，窗口期放行会在 Release 处抛 ObjectDisposedException。
-            // 释放竞态窗口内仍需结束追踪：清理回调正处理的连接经 ActualDispose 到达此处时，不再有统一收尾兜底，
-            // 直接跳过会让该连接的追踪记录永久滞留（对未追踪的 id 是无害 no-op）
-            if (IsDisposed || IsDisposing)
-            {
-                connectionTracker.EndTracking(e.ResourceId);
-                return;
-            }
+            // 所有到达此处的销毁统一先结束追踪（对未追踪的 id 是无害 no-op），各分支只承载差异收尾
+            connectionTracker.EndTracking(e.ResourceId);
 
+            // 正在释放时跳过：Dispose 中信号量先于状态销毁，窗口期放行会在 Release 处抛 ObjectDisposedException；
+            // 释放竞态窗口内经 ActualDispose 到达此处的连接，追踪已在上一步结束，不会永久滞留
+            if (IsDisposed || IsDisposing)
+                return;
+
+            // 该 TryRemove 是许可证归还的唯一判别闸：活动连接销毁（借用方持有的连接未走回池）移除成功 → 名额尚未归还，此处归还；
+            // 回池路径（Recycled 处理器）已先行移除字典并显式归还名额 → 移除失败只统计不归还。
+            // 两处归还以此互斥为前提——新增销毁路径时必须二选一（先移除字典走显式归还，或直接 ActualDispose 走本闸），勿双归还
             if (activeConnections.TryRemove(e.ResourceId, out _))
             {
                 // 活动连接销毁：归还借用名额，唤醒等待者
@@ -397,9 +402,6 @@ namespace Xbc.DbAccess
                 // 空闲连接销毁：名额已在回收/预创建时归还，无需再归还
                 statistics.RecordReleased();
             }
-
-            // 结束连接追踪
-            connectionTracker.EndTracking(e.ResourceId);
         }
 
         /// <summary>
@@ -449,7 +451,6 @@ namespace Xbc.DbAccess
             try
             {
                 const int maxCheckCount = 100;// 单次最多检查 100 个
-                var now = DateTime.Now;
                 var processedCount = 0;// 已处理连接数
                 var breakConnectionId = Guid.Empty;// 边界标记，用于跳出循环
 
@@ -472,10 +473,9 @@ namespace Xbc.DbAccess
 
                     // 超过最大寿命的连接无条件清理：寿命为安全上限，优先于 MinPoolSize 保温下限
                     bool lifetimeExpired = poolOptions.MaxLifetime > TimeSpan.Zero && connection.Age > poolOptions.MaxLifetime;
-                    bool shouldDispose = lifetimeExpired ||
-                        (now - connection.LastActiveAt > poolOptions.MaxIdleTime && currentIdleCount > poolOptions.MinPoolSize);
+                    bool idleExpired = connection.IdleDuration > poolOptions.MaxIdleTime && currentIdleCount > poolOptions.MinPoolSize;
 
-                    if (shouldDispose)
+                    if (lifetimeExpired || idleExpired)
                     {
                         connection.ActualDispose();
                     }
@@ -491,7 +491,7 @@ namespace Xbc.DbAccess
                         }
                         else if (connection.ConnectionId == breakConnectionId)
                         {
-                            // 绕行一圈回到边界连接即终止：now 已冻结，本周期内释放判定不会翻转
+                            // 绕行一圈回到边界连接即终止
                             break;
                         }
                     }

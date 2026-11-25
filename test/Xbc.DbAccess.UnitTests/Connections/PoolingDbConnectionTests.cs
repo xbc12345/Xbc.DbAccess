@@ -342,23 +342,23 @@ namespace Xbc.DbAccess.UnitTests.Connections
 
         #endregion
 
-        #region LastActiveAt 测试
+        #region IdleDuration 测试
 
         [Fact]
-        public void LastActiveAt_WhenCreated_IsMinValue()
+        public void IdleDuration_WhenCreated_IsNearZero()
         {
-            Assert.Equal(DateTime.MinValue, _connection.LastActiveAt);
+            Assert.True(_connection.IdleDuration < TimeSpan.FromSeconds(5));
         }
 
         [Fact]
-        public void LastActiveAt_AfterOpen_IsUpdated()
+        public void IdleDuration_AfterOpen_IsReset()
         {
             _ = _mockInnerConnection.Setup(static c => c.Open());
-            DateTime beforeOpen = DateTime.Now;
 
+            Thread.Sleep(50);// 间隔超过断言阈值：若未重置，IdleDuration 从创建时刻起算将不小于 50ms
             _connection.Open();
 
-            Assert.True(_connection.LastActiveAt >= beforeOpen);
+            Assert.True(_connection.IdleDuration < TimeSpan.FromMilliseconds(50));
         }
 
         #endregion

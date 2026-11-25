@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-
 namespace Xbc.DbAccess.SqlServer
 {
     /// <summary>
@@ -19,10 +17,16 @@ namespace Xbc.DbAccess.SqlServer
         }
 
         /// <summary>
-        /// 会话状态重置命令序列：回池时执行 <c>sp_reset_connection</c>，一次性复位临时表、SET 选项、残留事务、
+        /// 单条 SQL 语句允许的最大参数数量。引擎上限为 2100（RPC 请求的总参数量，含内部参数），
+        /// sp_executesql/sp_prepexec 等内部机制会占用少量参数位，不预留余量时恰好打满 2100 会报 too many parameters。
+        /// </summary>
+        public override int MaxParameterCount => 2090;
+
+        /// <summary>
+        /// 会话状态重置命令：回池时执行 <c>sp_reset_connection</c>，一次性复位临时表、SET 选项、残留事务、
         /// CONTEXT_INFO 等会话状态（对标 SQL Server 内置连接池的复用复位行为）。
         /// </summary>
-        public override IReadOnlyList<string> SessionStateResetCommands { get; } = new[] { "EXEC sp_reset_connection" };
+        public override string SessionStateResetCommand => "EXEC sp_reset_connection";
 
         /// <summary>
         /// 引用标识符（表名、列名等）。标识符中的 <c>]</c> 会被转义为 <c>]]</c>，避免提前闭合。
@@ -71,12 +75,6 @@ namespace Xbc.DbAccess.SqlServer
             // 从 SQL Server 2012 开始支持 OFFSET 和 FETCH NEXT（版本 11.0）
             return serverInfo.MajorVersion >= 11;
         }
-
-        /// <summary>
-        /// 单条 SQL 语句允许的最大参数数量。引擎上限为 2100（RPC 请求的总参数量，含内部参数），
-        /// sp_executesql/sp_prepexec 等内部机制会占用少量参数位，不预留余量时恰好打满 2100 会报 too many parameters。
-        /// </summary>
-        public override int MaxParameterCount => 2090;
 
         /// <summary>
         /// 单条多值 INSERT 语句允许的最大行数。表值构造器的硬性限制为 1000 行，超出将报错。

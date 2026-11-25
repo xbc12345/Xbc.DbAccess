@@ -16,6 +16,9 @@ namespace Xbc.DbAccess
         /// </summary>
         protected readonly DbConnection innerConnection;
 
+        // 当前挂起的根事务（未完成），用于池化连接的回收/复用防护
+        private volatile DbTransaction pendingTransaction;
+
         /// <summary>
         /// 连接唯一标识。
         /// </summary>
@@ -30,18 +33,15 @@ namespace Xbc.DbAccess
         internal DbConnection UnderlyingConnection => innerConnection;
 
         /// <summary>
-        /// 连接生命周期结束事件，当连接资源被释放时触发。
-        /// </summary>
-        internal event EventHandler<DbResourceLifecycleEndedEventArgs> LifecycleEnded;
-
-        // 当前挂起的根事务（未完成），用于池化连接的回收/复用防护
-        private volatile DbTransaction pendingTransaction;
-
-        /// <summary>
         /// 连接上是否挂有未完成的事务。
         /// <para>挂事务的连接回池重借后，新借用者的命令会隐式加入旧事务或因缺少事务关联而失败，连接池据此拒绝回收与复用此类连接。</para>
         /// </summary>
         internal bool HasPendingTransaction => pendingTransaction != null;
+
+        /// <summary>
+        /// 连接生命周期结束事件，当连接资源被释放时触发。
+        /// </summary>
+        internal event EventHandler<DbResourceLifecycleEndedEventArgs> LifecycleEnded;
 
         /// <summary>
         /// 是否已释放资源。

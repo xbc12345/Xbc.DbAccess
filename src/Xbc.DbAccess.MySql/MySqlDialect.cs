@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-
 namespace Xbc.DbAccess.MySql
 {
     /// <summary>
@@ -19,16 +17,23 @@ namespace Xbc.DbAccess.MySql
         }
 
         /// <summary>
-        /// 会话状态重置命令序列：MySQL 无 <c>sp_reset_connection</c> 的原生等价机制，回池时执行
-        /// <c>ROLLBACK</c>（驱动隐式事务兜底，框架挂起事务防护外的纵深防御）与常用会话变量复位
-        /// （<c>sql_mode</c>/<c>time_zone</c>，一条多赋值语句单往返完成）。
-        /// <para>临时表（会话级存续，无法枚举清理，连接销毁时自动释放）与用户变量（@v）不在复位范围。</para>
+        /// 单条 SQL 语句允许的最大参数数量。协议每个预编译语句最多支持 65535 个占位符参数。
         /// </summary>
-        public override IReadOnlyList<string> SessionStateResetCommands { get; } = new[]
-        {
-            "ROLLBACK",
-            "SET SESSION sql_mode = DEFAULT, SESSION time_zone = DEFAULT"
-        };
+        public override int MaxParameterCount => 65535;
+
+        /// <summary>
+        /// 会话状态重置命令：MySQL 协议级有 COM_RESET_CONNECTION（5.7+ 引入）但为二进制协议命令、无 SQL 形态，
+        /// 以单条多语句批模拟重置（单往返）。<c>ROLLBACK</c> 必须位于批首：残留事务须回滚丢弃
+        /// （<c>SET autocommit = 1</c> 会隐式提交活动事务，不能顶替回滚语义），其后为字符集与会话变量复位；
+        /// 批内执行顺序与服务端按序执行保证与逐条执行一致。任一语句失败由调用方将连接按失效销毁，与逐条执行的失败语义相同。
+        /// <para>多语句批依赖驱动 MULTI_STATEMENTS 能力（MySqlConnector/MySql.Data 默认开启，连接串显式关闭 AllowBatch 时不可用）；
+        /// 极老版本代理（如 ProxySQL 1.x）不支持多语句批，此类环境复位将失败并触发连接销毁重建（失败语义与单语句失败一致）。</para>
+        /// <para>autocommit 与字符集（SET NAMES）的残留必须复位：autocommit=0 残留会让下一个借用者的
+        /// 语句进入未提交事务并被回滚（数据丢失）；字符集残留影响文本编码。
+        /// 临时表（会话级存续，无法枚举清理，连接销毁时自动释放）与用户变量（@v）不在复位范围。</para>
+        /// </summary>
+        public override string SessionStateResetCommand { get; } =
+            "ROLLBACK; SET NAMES DEFAULT; SET SESSION autocommit = 1, SESSION sql_mode = DEFAULT, SESSION time_zone = DEFAULT";
 
         /// <summary>
         /// 引用标识符（表名、列名等）。标识符中的反引号会被双写转义，避免提前闭合。
@@ -47,11 +52,6 @@ namespace Xbc.DbAccess.MySql
         /// <param name="serverInfo">数据库服务器版本信息（未使用）。</param>
         public override InsertIdentityMode GetInsertIdentityMode(DbServerInfo serverInfo)
             => InsertIdentityMode.SelectLastInsertId;
-
-        /// <summary>
-        /// 单条 SQL 语句允许的最大参数数量。协议每个预编译语句最多支持 65535 个占位符参数。
-        /// </summary>
-        public override int MaxParameterCount => 65535;
 
         /// <summary>
         /// 单条多值 INSERT 语句允许的最大行数。MySQL 无行数硬限制。

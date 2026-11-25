@@ -2,11 +2,8 @@ namespace Xbc.DbAccess
 {
     /// <summary>
     /// 数据库连接池选项。
-    /// <para>会话状态重置：连接回池时按方言执行复位命令（SQL Server <c>sp_reset_connection</c>、PostgreSQL <c>DISCARD ALL</c>、
-    /// MySQL <c>ROLLBACK</c> + 常用会话变量复位；Oracle/SQLite 无对应机制，残留风险低），可经 <see cref="EnableSessionStateReset"/> 关闭。
-    /// MySQL 的临时表（会话级存续）与用户变量不在复位范围，其余方言特有会话状态（如 Oracle 的 ALTER SESSION 调整）同理；
-    /// 需要完整会话隔离时请经 <c>IDbAccess.ProviderFactory.DbProviderFactory.CreateConnection()</c> 创建独立的非池化连接。
-    /// 挂起事务防护仅覆盖经框架事务包装器开启的事务：经 <c>UnderlyingConnection</c> 直接开启的事务不会阻止连接回池复用。</para>
+    /// <para>会话状态重置：连接回池时按方言执行复位命令，可经 <see cref="EnableSessionStateReset"/> 关闭；需要完整会话隔离时
+    /// 请经 <c>IDbAccess.ProviderFactory.DbProviderFactory.CreateConnection()</c> 创建独立的非池化连接。</para>
     /// </summary>
     public sealed class DbConnectionPoolOptions
     {
@@ -38,7 +35,7 @@ namespace Xbc.DbAccess
         public TimeSpan MaxLifetime { get; set; } = TimeSpan.FromMinutes(30);
 
         /// <summary>
-        /// 是否在连接归还连接池时执行会话状态重置（按方言提供命令，见 <c>ISqlDialect.SessionStateResetCommands</c>），默认开启。
+        /// 是否在连接归还连接池时执行会话状态重置（按方言提供命令，见 <c>ISqlDialect.SessionStateResetCommand</c>），默认开启。
         /// <para>对标 SQL Server 内置连接池的 <c>sp_reset_connection</c>：临时表、SET 选项等会话残留不再透传给下一个借用者。</para>
         /// <para>重置在归还线程同步执行（每条命令一个往返），对归还延迟敏感且确认无会话残留风险的应用可关闭。</para>
         /// </summary>
@@ -62,7 +59,8 @@ namespace Xbc.DbAccess
 
         /// <summary>
         /// 激活连接时执行健康检查命令的超时时间（秒），默认值为 3。
-        /// <para>健康检查命令按方言生成（SELECT 1，Oracle 为 SELECT 1 FROM DUAL）。</para>
+        /// <para>连接归还时会话状态重置命令的单条超时同样使用该值（两者均为池内维护命令）。
+        /// 健康检查命令按方言生成（SELECT 1，Oracle 为 SELECT 1 FROM DUAL）。</para>
         /// </summary>
         public int ValidationCommandTimeout { get; set; } = 3;
 
@@ -82,16 +80,16 @@ namespace Xbc.DbAccess
                 throw new ArgumentOutOfRangeException(nameof(MinPoolSize), MinPoolSize, $"连接池最小连接数 {MinPoolSize} 不能大于最大连接数 {MaxPoolSize}。");
 
             if (MaxIdleTime <= TimeSpan.Zero)
-                throw new ArgumentOutOfRangeException(nameof(MaxIdleTime), MaxIdleTime, "连接最大空闲时间必须为正。");
+                throw new ArgumentOutOfRangeException(nameof(MaxIdleTime), MaxIdleTime, "连接最大空闲时间不能小于等于 TimeSpan.Zero。");
 
             if (MaxLifetime < TimeSpan.Zero)
                 throw new ArgumentOutOfRangeException(nameof(MaxLifetime), MaxLifetime, "连接最大寿命不能为负数（TimeSpan.Zero 表示不限制）。");
 
             if (CleanupInterval <= TimeSpan.Zero)
-                throw new ArgumentOutOfRangeException(nameof(CleanupInterval), CleanupInterval, "连接池清理间隔必须为正。");
+                throw new ArgumentOutOfRangeException(nameof(CleanupInterval), CleanupInterval, "连接池清理间隔不能小于等于 TimeSpan.Zero。");
 
             if (ConnectionWaitTimeout <= TimeSpan.Zero)
-                throw new ArgumentOutOfRangeException(nameof(ConnectionWaitTimeout), ConnectionWaitTimeout, "连接等待超时时间必须为正。");
+                throw new ArgumentOutOfRangeException(nameof(ConnectionWaitTimeout), ConnectionWaitTimeout, "连接等待超时时间不能小于等于 TimeSpan.Zero。");
 
             if (ValidationSkipInterval < TimeSpan.Zero)
                 throw new ArgumentOutOfRangeException(nameof(ValidationSkipInterval), ValidationSkipInterval, "跳过健康检查的时间间隔不能为负数（TimeSpan.Zero 表示每次激活都验证）。");

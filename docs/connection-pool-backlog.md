@@ -74,7 +74,7 @@
 
 ### 10. 会话状态重置（对标 sp_reset_connection）✅ 已完成（2026-11-25）
 
-- **位置**：`PoolingDbConnection.ResetSessionState`（回池时执行）+ 各方言 `SessionStateResetCommands`
+- **位置**：`PoolingDbConnection.ResetSessionState`（回池时执行）+ 各方言 `SessionStateResetCommand`
 - **实现**：连接归还连接池时按方言同步执行复位命令（在归还线程执行，保持借用快速路径语义不变），任一命令失败连接销毁换新、不入池：
   SQL Server `sp_reset_connection`；PostgreSQL `DISCARD ALL`；MySQL `ROLLBACK` + `SET SESSION sql_mode/time_zone = DEFAULT`（无原生等价机制）；
   Oracle（临时表为全局临时表对象、事务隔离为事务级设置）与 SQLite（无会话级可变状态）默认空序列。

@@ -595,8 +595,8 @@ namespace Xbc.DbAccess.UnitTests.Connections
             var tracker = new Mock<IDbConnectionTracker>();
             var dialect = new Mock<ISqlDialect>();
             dialect.Setup(static d => d.ScalarSelectFromClause).Returns((string)null);
-            dialect.Setup(static d => d.SessionStateResetCommands)
-                .Returns(new[] { "ROLLBACK", "SET SESSION sql_mode = DEFAULT" });
+            dialect.Setup(static d => d.SessionStateResetCommand)
+                .Returns("ROLLBACK; SET SESSION sql_mode = DEFAULT");
 
             using var manager = new PoolingDbConnectionManager(
                 ConnectionTestHelper.CreatePoolOptions(), factory.Object, tracker.Object, dialect.Object);
@@ -604,9 +604,9 @@ namespace Xbc.DbAccess.UnitTests.Connections
             var connection = (PoolingDbConnection)await manager.GetOrCreateAsync();
             manager.Release(connection);
 
-            // 回池时按序执行方言重置命令，随后连接入池
+            // 回池时执行方言重置命令，随后连接入池
             Assert.False(connection.IsDisposed);
-            Assert.Equal(new[] { "ROLLBACK", "SET SESSION sql_mode = DEFAULT" }, InnerOf(connection).CommandStub.NonQueryLog);
+            Assert.Equal(new[] { "ROLLBACK; SET SESSION sql_mode = DEFAULT" }, InnerOf(connection).CommandStub.NonQueryLog);
             var statistics = (PoolingDbConnectionStatistics)manager.GetStatistics();
             Assert.Equal(1, statistics.TotalRecycled);
             Assert.Equal(1, statistics.IdleConnections);
@@ -626,7 +626,7 @@ namespace Xbc.DbAccess.UnitTests.Connections
             var tracker = new Mock<IDbConnectionTracker>();
             var dialect = new Mock<ISqlDialect>();
             dialect.Setup(static d => d.ScalarSelectFromClause).Returns((string)null);
-            dialect.Setup(static d => d.SessionStateResetCommands).Returns(new[] { "BAD_RESET" });
+            dialect.Setup(static d => d.SessionStateResetCommand).Returns("BAD_RESET");
 
             using var manager = new PoolingDbConnectionManager(
                 ConnectionTestHelper.CreatePoolOptions(), factory.Object, tracker.Object, dialect.Object);
@@ -659,7 +659,7 @@ namespace Xbc.DbAccess.UnitTests.Connections
             var tracker = new Mock<IDbConnectionTracker>();
             var dialect = new Mock<ISqlDialect>();
             dialect.Setup(static d => d.ScalarSelectFromClause).Returns((string)null);
-            dialect.Setup(static d => d.SessionStateResetCommands).Returns(new[] { "ROLLBACK" });
+            dialect.Setup(static d => d.SessionStateResetCommand).Returns("ROLLBACK");
 
             using var manager = new PoolingDbConnectionManager(
                 ConnectionTestHelper.CreatePoolOptions(enableSessionStateReset: false), factory.Object, tracker.Object, dialect.Object);

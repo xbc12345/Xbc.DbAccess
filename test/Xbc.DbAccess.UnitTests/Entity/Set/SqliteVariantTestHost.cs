@@ -44,7 +44,7 @@ namespace Xbc.DbAccess.UnitTests.Entity.Set
 
         public string ScalarSelectFromClause => inner.ScalarSelectFromClause;
 
-        public IReadOnlyList<string> SessionStateResetCommands => inner.SessionStateResetCommands;
+        public string SessionStateResetCommand => inner.SessionStateResetCommand;
 
         public string SelectLastInsertId(string columnName) => inner.SelectLastInsertId(columnName);
 

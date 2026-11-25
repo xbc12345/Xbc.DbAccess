@@ -795,37 +795,37 @@ namespace Xbc.DbAccess.UnitTests
         /// MySQL 用 ROLLBACK 兜底 + 常用会话变量复位（无原生等价机制）；
         /// Oracle（临时表为全局临时表对象、事务隔离为事务级设置）与 SQLite（无会话级可变状态）默认空序列。
         /// </summary>
-        public class SessionStateResetCommandsTests
+        public class SessionStateResetCommandTests
         {
             [Fact]
             public void SqlServerDialect_应返回sp_reset_connection()
             {
-                Assert.Equal(new[] { "EXEC sp_reset_connection" }, SqlServerDialect.Instance.SessionStateResetCommands);
+                Assert.Equal("EXEC sp_reset_connection", SqlServerDialect.Instance.SessionStateResetCommand);
             }
 
             [Fact]
             public void NpgsqlDialect_应返回DiscardAll()
             {
-                Assert.Equal(new[] { "DISCARD ALL" }, NpgsqlDialect.Instance.SessionStateResetCommands);
+                Assert.Equal("DISCARD ALL", NpgsqlDialect.Instance.SessionStateResetCommand);
             }
 
             [Fact]
-            public void MySqlDialect_应返回Rollback与会话变量复位()
+            public void MySqlDialect_应返回Rollback与会话状态复位()
             {
-                Assert.Equal(new[] { "ROLLBACK", "SET SESSION sql_mode = DEFAULT, SESSION time_zone = DEFAULT" },
-                    MySqlDialect.Instance.SessionStateResetCommands);
+                Assert.Equal("ROLLBACK; SET NAMES DEFAULT; SET SESSION autocommit = 1, SESSION sql_mode = DEFAULT, SESSION time_zone = DEFAULT",
+                    MySqlDialect.Instance.SessionStateResetCommand);
             }
 
             [Fact]
             public void OracleDialect_默认空序列()
             {
-                Assert.Empty(OracleDialect.Instance.SessionStateResetCommands);
+                Assert.Null(OracleDialect.Instance.SessionStateResetCommand);
             }
 
             [Fact]
             public void SqliteDialect_默认空序列()
             {
-                Assert.Empty(SqliteDialect.Instance.SessionStateResetCommands);
+                Assert.Null(SqliteDialect.Instance.SessionStateResetCommand);
             }
         }
 
