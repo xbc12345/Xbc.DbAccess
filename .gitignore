@@ -87,3 +87,4 @@ guides/html/
 .DS_Store
 Thumbs.db
 /src/archived
+/test/Xbc.DbAccess.Benchmarks/BenchmarkDotNet.Artifacts
