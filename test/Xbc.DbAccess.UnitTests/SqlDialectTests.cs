@@ -786,5 +786,49 @@ namespace Xbc.DbAccess.UnitTests
         }
 
         #endregion
+
+        #region 会话状态重置命令 Tests
+
+        /// <summary>
+        /// 各方言的会话状态重置命令契约（回池时按序执行，任一失败连接销毁）：
+        /// SQL Server 用 sp_reset_connection 一次性复位；PostgreSQL 用 DISCARD ALL；
+        /// MySQL 用 ROLLBACK 兜底 + 常用会话变量复位（无原生等价机制）；
+        /// Oracle（临时表为全局临时表对象、事务隔离为事务级设置）与 SQLite（无会话级可变状态）默认空序列。
+        /// </summary>
+        public class SessionStateResetCommandsTests
+        {
+            [Fact]
+            public void SqlServerDialect_应返回sp_reset_connection()
+            {
+                Assert.Equal(new[] { "EXEC sp_reset_connection" }, SqlServerDialect.Instance.SessionStateResetCommands);
+            }
+
+            [Fact]
+            public void NpgsqlDialect_应返回DiscardAll()
+            {
+                Assert.Equal(new[] { "DISCARD ALL" }, NpgsqlDialect.Instance.SessionStateResetCommands);
+            }
+
+            [Fact]
+            public void MySqlDialect_应返回Rollback与会话变量复位()
+            {
+                Assert.Equal(new[] { "ROLLBACK", "SET SESSION sql_mode = DEFAULT, SESSION time_zone = DEFAULT" },
+                    MySqlDialect.Instance.SessionStateResetCommands);
+            }
+
+            [Fact]
+            public void OracleDialect_默认空序列()
+            {
+                Assert.Empty(OracleDialect.Instance.SessionStateResetCommands);
+            }
+
+            [Fact]
+            public void SqliteDialect_默认空序列()
+            {
+                Assert.Empty(SqliteDialect.Instance.SessionStateResetCommands);
+            }
+        }
+
+        #endregion
     }
 }

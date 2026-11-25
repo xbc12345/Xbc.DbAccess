@@ -68,6 +68,16 @@ namespace Xbc.DbAccess
         string ScalarSelectFromClause { get; }
 
         /// <summary>
+        /// 会话状态重置命令序列：连接归还连接池时按序执行，将会话恢复到"干净"状态后再入池复用，
+        /// 对标 SQL Server 内置连接池的 <c>sp_reset_connection</c>。
+        /// <para>SQL Server 返回 <c>sp_reset_connection</c>（临时表、SET 选项、残留事务等一次性复位）；
+        /// PostgreSQL 返回 <c>DISCARD ALL</c>；MySQL 返回 <c>ROLLBACK</c> 与常用会话变量复位（无原生等价机制）；
+        /// 无会话残留风险或无等价机制的方言（Oracle/SQLite）返回空序列。</para>
+        /// <para>任一命令执行失败，连接按失效处理销毁重建。</para>
+        /// </summary>
+        System.Collections.Generic.IReadOnlyList<string> SessionStateResetCommands { get; }
+
+        /// <summary>
         /// 获取查询最后插入的自增 ID 的 SQL 语句，用于不支持 OUTPUT/RETURNING 子句的数据库。
         /// </summary>
         /// <param name="columnName">自增 ID 列名。</param>

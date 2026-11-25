@@ -1,5 +1,7 @@
+using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
+using System.Diagnostics;
 
 namespace Xbc.DbAccess
 {
@@ -17,6 +19,17 @@ namespace Xbc.DbAccess
         private int state = State_Created;// 新创建的连接初始状态为已创建
         private string initialDatabase;// 初始数据库名称，用于激活时重置数据库上下文
         private long lastActiveTicks;// 最后活动时间的本地 tick 值，使用原子操作读写，避免 32 位平台上 DateTime 赋值撕裂
+        private readonly long createdAtTimestamp = Stopwatch.GetTimestamp();// 创建时刻的单调时钟时间戳，用于最大寿命判定（不受系统时间调整影响）
+
+        /// <summary>
+        /// 连接创建时间。
+        /// </summary>
+        public DateTime CreatedAt { get; } = DateTime.Now;
+
+        /// <summary>
+        /// 连接存活时长（单调时钟，不受系统时间调整影响），用于连接池的最大寿命判定。
+        /// </summary>
+        internal TimeSpan Age => TimeSpan.FromSeconds((double)(Stopwatch.GetTimestamp() - createdAtTimestamp) / Stopwatch.Frequency);
 
         /// <summary>
         /// 最后活动时间。
@@ -269,6 +282,27 @@ namespace Xbc.DbAccess
             // 数据库被修改过则重置回初始数据库，避免残留访问其他数据库
             if (!string.Equals(innerConnection.Database, initialDatabase, StringComparison.OrdinalIgnoreCase))
                 innerConnection.ChangeDatabase(initialDatabase);
+        }
+
+        /// <summary>
+        /// 执行会话状态重置命令（连接归还连接池时由连接池调用，将连接恢复到"干净"会话再入池）。
+        /// <para>命令序列按方言提供（<c>ISqlDialect.SessionStateResetCommands</c>），任一命令失败由调用方将连接按失效销毁。</para>
+        /// </summary>
+        /// <param name="resetCommands">会话状态重置命令序列（按序执行）。</param>
+        /// <param name="commandTimeout">单条命令超时时间（秒）。</param>
+        internal void ResetSessionState(IReadOnlyList<string> resetCommands, int commandTimeout)
+        {
+            foreach (var commandText in resetCommands)
+            {
+                using (var command = innerConnection.CreateCommand())
+                {
+                    command.CommandType = CommandType.Text;
+                    command.CommandText = commandText;
+                    command.CommandTimeout = commandTimeout;
+
+                    command.ExecuteNonQuery();
+                }
+            }
         }
 
         /// <summary>

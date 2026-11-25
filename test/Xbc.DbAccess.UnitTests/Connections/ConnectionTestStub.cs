@@ -130,7 +130,8 @@ namespace Xbc.DbAccess.UnitTests.Connections
     }
 
     /// <summary>
-    /// 测试用数据库命令 stub：ExecuteScalar 结果与异常可控，用于驱动连接健康检查分支。
+    /// 测试用数据库命令 stub：ExecuteScalar 结果与异常可控，用于驱动连接健康检查分支；
+    /// ExecuteNonQuery 记录命令文本并支持异常注入，用于驱动会话状态重置分支。
     /// </summary>
     public class StubDbCommand : DbCommand
     {
@@ -144,7 +145,17 @@ namespace Xbc.DbAccess.UnitTests.Connections
         /// </summary>
         public Exception ExecuteScalarException { get; set; }
 
+        /// <summary>
+        /// ExecuteNonQuery 抛出的异常，null 表示执行成功。
+        /// </summary>
+        public Exception ExecuteNonQueryException { get; set; }
+
         public int ScalarCallCount { get; private set; }
+
+        /// <summary>
+        /// 已执行的 ExecuteNonQuery 命令文本（按执行顺序，stub 命令随连接共享实例，聚合了连接上的全部非查询命令）。
+        /// </summary>
+        public List<string> NonQueryLog { get; } = new List<string>();
 
         public override string CommandText { get; set; } = string.Empty;
 
@@ -184,6 +195,10 @@ namespace Xbc.DbAccess.UnitTests.Connections
 
         public override int ExecuteNonQuery()
         {
+            NonQueryLog.Add(CommandText);
+            if (ExecuteNonQueryException != null)
+                throw ExecuteNonQueryException;
+
             return 0;
         }
 
@@ -243,6 +258,8 @@ namespace Xbc.DbAccess.UnitTests.Connections
             int minPoolSize = 0,
             int maxPoolSize = 10,
             TimeSpan? maxIdleTime = null,
+            TimeSpan? maxLifetime = null,
+            bool enableSessionStateReset = true,
             bool enableStatistics = true)
         {
             return new DbConnectionOptions
@@ -255,7 +272,9 @@ namespace Xbc.DbAccess.UnitTests.Connections
                     MaxPoolSize = maxPoolSize,
                     ConnectionWaitTimeout = TimeSpan.FromSeconds(5),
                     CleanupInterval = TimeSpan.FromMinutes(10),
-                    MaxIdleTime = maxIdleTime ?? TimeSpan.FromMinutes(15)
+                    MaxIdleTime = maxIdleTime ?? TimeSpan.FromMinutes(15),
+                    MaxLifetime = maxLifetime ?? TimeSpan.FromMinutes(30),
+                    EnableSessionStateReset = enableSessionStateReset
                 }
             };
         }

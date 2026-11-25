@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Xbc.DbAccess.SqlServer
 {
     /// <summary>
@@ -15,6 +17,12 @@ namespace Xbc.DbAccess.SqlServer
         private SqlServerDialect()
         {
         }
+
+        /// <summary>
+        /// 会话状态重置命令序列：回池时执行 <c>sp_reset_connection</c>，一次性复位临时表、SET 选项、残留事务、
+        /// CONTEXT_INFO 等会话状态（对标 SQL Server 内置连接池的复用复位行为）。
+        /// </summary>
+        public override IReadOnlyList<string> SessionStateResetCommands { get; } = new[] { "EXEC sp_reset_connection" };
 
         /// <summary>
         /// 引用标识符（表名、列名等）。标识符中的 <c>]</c> 会被转义为 <c>]]</c>，避免提前闭合。

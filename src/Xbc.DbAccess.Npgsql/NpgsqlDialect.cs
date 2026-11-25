@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Xbc.DbAccess.Npgsql
 {
     /// <summary>
@@ -16,6 +18,12 @@ namespace Xbc.DbAccess.Npgsql
         private NpgsqlDialect()
         {
         }
+
+        /// <summary>
+        /// 会话状态重置命令序列：回池时执行 <c>DISCARD ALL</c>，一次性复位会话变量（RESET ALL）、
+        /// 关闭游标、释放临时表与准备语句、取消 NOTIFY 监听、重置会话授权。
+        /// </summary>
+        public override IReadOnlyList<string> SessionStateResetCommands { get; } = new[] { "DISCARD ALL" };
 
         /// <summary>
         /// 获取 INSERT 语句自增 ID 的取回方式：PostgreSQL 使用 RETURNING 子句（结果集方式），与引擎版本无关。
