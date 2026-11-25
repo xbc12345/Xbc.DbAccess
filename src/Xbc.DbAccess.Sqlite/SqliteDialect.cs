@@ -17,6 +17,13 @@ namespace Xbc.DbAccess.Sqlite
         }
 
         /// <summary>
+        /// 单条 SQL 语句允许的最大参数数量。SQLite 3.32.0 起 SQLITE_MAX_VARIABLE_NUMBER 默认值已提升至 32766，
+        /// 本库捆绑的 System.Data.SQLite（>= 1.0.116）自带 SQLite 3.39+——引擎版本随包依赖锁定而非运行环境决定，
+        /// 故直接取 32766。仅当自行替换为 3.32 之前的原生引擎时需注意该上限会降回 999。
+        /// </summary>
+        public override int MaxParameterCount => 32766;
+
+        /// <summary>
         /// 是否支持架构（Schema）。SQLite 不支持传统架构，仅通过 ATTACH DATABASE 模拟。
         /// </summary>
         public override bool SupportsSchema => false;
@@ -41,13 +48,6 @@ namespace Xbc.DbAccess.Sqlite
                 ? InsertIdentityMode.OutputClause
                 : InsertIdentityMode.SelectLastInsertId;
         }
-
-        /// <summary>
-        /// 单条 SQL 语句允许的最大参数数量。SQLite 3.32.0 起 SQLITE_MAX_VARIABLE_NUMBER 默认值已提升至 32766，
-        /// 本库捆绑的 System.Data.SQLite（>= 1.0.116）自带 SQLite 3.39+——引擎版本随包依赖锁定而非运行环境决定，
-        /// 故直接取 32766。仅当自行替换为 3.32 之前的原生引擎时需注意该上限会降回 999。
-        /// </summary>
-        public override int MaxParameterCount => 32766;
 
         /// <summary>
         /// 单条多值 INSERT 语句允许的最大行数。SQLite 的多值 VALUES 在引擎内部按复合 SELECT 处理，

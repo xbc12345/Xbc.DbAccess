@@ -17,6 +17,16 @@ namespace Xbc.DbAccess.Oracle
         }
 
         /// <summary>
+        /// 单条 SQL 语句允许的最大参数数量。1000 为 Oracle IN 列表表达式上限（ORA-01795），绑定变量总数的实际上限更高；
+        /// 作为通用参数上限取保守值，仅影响批量分批粒度，不影响正确性。
+        /// </summary>
+        public override int MaxParameterCount => 1000;
+
+        /// <inheritdoc />
+        /// <remarks>Oracle 23c 之前不支持无 FROM 的纯量 SELECT，需追加 FROM DUAL。</remarks>
+        public override string ScalarSelectFromClause => " FROM DUAL";
+
+        /// <summary>
         /// 获取 INSERT 语句自增 ID 的取回方式：Oracle 使用 RETURNING INTO 输出参数方式。
         /// <para>Oracle 的自增列（12c IDENTITY 或序列填充列）可通过 <c>RETURNING "Id" INTO :out_Id</c> 单语句取回：
         /// 自增 ID 由提供程序在执行后写回输出参数，不产生结果集。RETURNING INTO 适用于所有受支持版本。</para>
@@ -43,20 +53,10 @@ namespace Xbc.DbAccess.Oracle
         }
 
         /// <summary>
-        /// 单条 SQL 语句允许的最大参数数量。1000 为 Oracle IN 列表表达式上限（ORA-01795），绑定变量总数的实际上限更高；
-        /// 作为通用参数上限取保守值，仅影响批量分批粒度，不影响正确性。
-        /// </summary>
-        public override int MaxParameterCount => 1000;
-
-        /// <summary>
         /// 单条多值 INSERT 语句允许的最大行数。Oracle 23c 之前不支持 <c>VALUES (...), (...)</c> 多值插入语法，
         /// 返回 1 使批量插入退化为逐行的单值 INSERT，保证生成语法合法。
         /// </summary>
         public override int MaxRowsPerInsertValues => 1;
-
-        /// <inheritdoc />
-        /// <remarks>Oracle 23c 之前不支持无 FROM 的纯量 SELECT，需追加 FROM DUAL。</remarks>
-        public override string ScalarSelectFromClause => " FROM DUAL";
 
         /// <summary>
         /// 获取查询最后插入的自增 ID 的 SQL 语句。
